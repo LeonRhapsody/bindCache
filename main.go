@@ -176,7 +176,6 @@ func (bC *BindCache) outputNSIPToTxt() {
 
 // 输出NSip信息
 func (bC *BindCache) outputNSIP() {
-
 	// 读取 IP 地址段文件，构建 IP 范围列表
 	_, map1, err := readIPRanges("vip.txt")
 	if err != nil {
@@ -186,68 +185,90 @@ func (bC *BindCache) outputNSIP() {
 
 	nsIPToDomain := make(map[string][]string)
 	for domain, record := range bC.records {
-		if len(record.NSs) > 0 {
-			for _, ns := range record.NSs {
-				var str []string
-				for _, a := range bC.records[ns.NsDomain].As {
-					str = append(str, a.IP)
-					nsIPToDomain[a.IP] = append(nsIPToDomain[a.IP], domain)
-				}
-				for _, aaaa := range bC.records[ns.NsDomain].AAAAs {
-					str = append(str, aaaa.IP)
-					nsIPToDomain[aaaa.IP] = append(nsIPToDomain[aaaa.IP], domain)
-				}
-				//fmt.Println(domain, ns.NsDomain, strings.Join(str, ","))
-
+		for _, ns := range record.NSs {
+			for _, a := range bC.records[ns.NsDomain].As {
+				nsIPToDomain[a.IP] = append(nsIPToDomain[a.IP], domain)
+			}
+			for _, aaaa := range bC.records[ns.NsDomain].AAAAs {
+				nsIPToDomain[aaaa.IP] = append(nsIPToDomain[aaaa.IP], domain)
 			}
 		}
 	}
 
-	var buffer bytes.Buffer
-	fmt.Printf("发现%d个权威IP\n", len(nsIPToDomain))
-	// 记录开始时间
-	startTime := time.Now()
+	total := len(nsIPToDomain)
+	fmt.Printf("发现%d个权威IP，准备开始归属匹配...\n", total)
+
+	results := make([]string, total)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	num := 0
+	startTime := time.Now()
 
-	go func() {
-		for int(num) < len(nsIPToDomain) {
-			// 每秒输出一次进度
-			time.Sleep(1 * time.Second)
+	// 并发处理匹配
+	ips := make([]string, 0, total)
+	for ip := range nsIPToDomain {
+		ips = append(ips, ip)
+	}
 
-			// 计算已耗时
-			elapsedTime := time.Since(startTime)
+	workerCount := 50
+	jobs := make(chan int, total)
+	for w := 0; w < workerCount; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				ip := ips[i]
+				domains := nsIPToDomain[ip]
+				var result string
+				if ok, client := isInIPRanges(ip, &map1); ok {
+					result = client
+				} else {
+					result = "未知"
+				}
 
-			// 刷新输出：包括处理进度和已耗时
-			fmt.Printf("\r%s %d(%.2f%%) 已耗时: %v", "匹配完成：", num, (float32(num)/float32(len(nsIPToDomain)))*100, elapsedTime)
+				var line string
+				if len(domains) > 50 {
+					line = fmt.Sprintf("%s,%s,%d,%s\n", result, ip, len(domains), "过长不显示")
+				} else {
+					line = fmt.Sprintf("%s,%s,%d,%s\n", result, ip, len(domains), strings.Join(domains, "|"))
+				}
 
-		}
-	}()
+				mu.Lock()
+				results[num] = line
+				num++
+				if num%100 == 0 || num == total {
+					elapsedTime := time.Since(startTime)
+					fmt.Printf("\r%s %d(%.2f%%) 已耗时: %v", "匹配进度：", num, (float32(num)/float32(total))*100, elapsedTime)
+				}
+				mu.Unlock()
+			}
+		}()
+	}
 
+	for i := 0; i < total; i++ {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+	fmt.Println("\n匹配完成，正在写入文件...")
+
+	var buffer bytes.Buffer
 	buffer.WriteString("NS IP归属,NS IP,解析域名数,域名清单\n")
-	for ip, domains := range nsIPToDomain {
-		var result string
-		if ok, client := isInIPRanges(ip, &map1); ok {
-			result = client
-		} else {
-			result = "未知"
-		}
-		num++
-		if len(domains) > 50 {
-			buffer.WriteString(fmt.Sprintf("%s,%s,%d,%s\n", result, ip, len(domains), "过长不显示"))
-
-		} else {
-			buffer.WriteString(fmt.Sprintf("%s,%s,%d,%s\n", result, ip, len(domains), strings.Join(domains, "|")))
-
+	for _, line := range results {
+		if line != "" {
+			buffer.WriteString(line)
 		}
 	}
 
 	file, err := os.Create("ipToDomain.csv")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("创建文件失败:", err)
+		return
 	}
 	defer file.Close()
 
 	buffer.WriteTo(file)
+	fmt.Println("结果已写入 ipToDomain.csv")
 }
 
 // 输出NSip信息

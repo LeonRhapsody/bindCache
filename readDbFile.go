@@ -113,21 +113,27 @@ type Parser struct {
 	specialPattern   *regexp.Regexp // 特殊记录模板
 	domainPattern    *regexp.Regexp
 	// 多行记录处理
-	inMultiLine     bool
-	multiLineBuffer string
-	multiLineType   string
+	inMultiLine        bool
+	multiLineBuffer    string
+	multiLineType      string
+	type65StartPattern *regexp.Regexp // TYPE65 多行开始
+	cleanValuePattern  *regexp.Regexp // SVCB 数据清理
+	indentPattern      *regexp.Regexp // 缩进格式记录
 }
 
 // NewParser 创建一个新的解析器
 func NewParser() *Parser {
 	const initialCapacity = 1000
 	return &Parser{
-		records:         make(map[string]Record, initialCapacity),
-		nxdomainRecords: make(map[string]Record, initialCapacity/10),
-		nxrrsetRecords:  make(map[string]Record, initialCapacity/10),
-		normalPattern:   regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+(IN\s+NS|NS|A|AAAA|CNAME|ANY|TYPE65|IN\s+SOA|SOA|IN\s+MX|MX|IN\s+PTR|PTR|IN\s+TXT|TXT)\s+([^\s]+(?:\s+[^\s]+(?:\s*\(.*)?)?)$`),
-		specialPattern:  regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+\\-(A|AAAA|CNAME|ANY|TYPE65|MX|PTR|TXT)\s+;\-\$([^\s]+)$`),
-		domainPattern:   regexp.MustCompile(`^.*\.$`),
+		records:            make(map[string]Record, initialCapacity),
+		nxdomainRecords:    make(map[string]Record, initialCapacity/10),
+		nxrrsetRecords:     make(map[string]Record, initialCapacity/10),
+		normalPattern:      regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+(IN\s+NS|NS|A|AAAA|CNAME|ANY|TYPE65|IN\s+SOA|SOA|IN\s+MX|MX|IN\s+PTR|PTR|IN\s+TXT|TXT)\s+([^\s]+(?:\s+[^\s]+(?:\s*\(.*)?)?)$`),
+		specialPattern:     regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+\\-(A|AAAA|CNAME|ANY|TYPE65|MX|PTR|TXT)\s+;\-\$([^\s]+)$`),
+		domainPattern:      regexp.MustCompile(`^.*\.$`),
+		type65StartPattern: regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+(TYPE65)\s+\\#\s+\d+\s*\(\s*`),
+		cleanValuePattern:  regexp.MustCompile(`[^0-9a-fA-F]`),
+		indentPattern:      regexp.MustCompile(`^\s+(\d+)\s+(A|AAAA|CNAME|ANY|TYPE65|IN\s+SOA|SOA|IN\s+MX|MX|IN\s+PTR|PTR|IN\s+TXT|TXT)\s+(.+)$`),
 	}
 }
 
@@ -233,15 +239,14 @@ func (p *Parser) parseLine(line string) {
 	}
 
 	// 检查是否是TYPE65多行记录的开始
-	type65StartPattern := regexp.MustCompile(`^([^\s]+)?\s*(\d+)\s+(TYPE65)\s+\\#\s+\d+\s*\(\s*`)
-	if matches := type65StartPattern.FindStringSubmatch(line); matches != nil {
+	if matches := p.type65StartPattern.FindStringSubmatch(line); matches != nil {
 		p.inMultiLine = true
 		p.multiLineType = "TYPE65"
 		p.currentDomain = strings.TrimSpace(matches[1])
 		p.currentTTL, _ = strconv.Atoi(matches[2])
 		p.ensureDomain(p.currentDomain)
 		// 提取第一行中的部分内容
-		firstPart := strings.TrimPrefix(line, type65StartPattern.FindString(line))
+		firstPart := strings.TrimPrefix(line, p.type65StartPattern.FindString(line))
 		p.multiLineBuffer = firstPart
 		return
 	}
@@ -254,8 +259,7 @@ func (p *Parser) parseLine(line string) {
 
 	// 尝试匹配没有域名前缀的记录格式（域名继承）
 	// 检查是否是缩进格式的记录（表示继承前面的域名）
-	indentPattern := regexp.MustCompile(`^\s+(\d+)\s+(A|AAAA|CNAME|ANY|TYPE65|IN\s+SOA|SOA|IN\s+MX|MX|IN\s+PTR|PTR|IN\s+TXT|TXT)\s+(.+)$`)
-	if matches := indentPattern.FindStringSubmatch(line); matches != nil && p.currentDomain != "" {
+	if matches := p.indentPattern.FindStringSubmatch(line); matches != nil && p.currentDomain != "" {
 		// 使用当前域名来解析这条记录
 		newMatches := []string{
 			matches[0],      // 整体匹配
@@ -374,7 +378,7 @@ func (p *Parser) parseNormal(matches []string) {
 	case "TYPE65":
 		// 解码16进制字符串为字节数组
 		// 预处理：移除所有非十六进制字符
-		cleanValue := regexp.MustCompile(`[^0-9a-fA-F]`).ReplaceAllString(value, "")
+		cleanValue := p.cleanValuePattern.ReplaceAllString(value, "")
 		// 处理奇数长度
 		if len(cleanValue)%2 != 0 {
 			// log.Printf("TYPE65数据长度为奇数，自动补零: %s -> %s0", cleanValue, cleanValue)
