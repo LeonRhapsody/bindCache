@@ -1,0 +1,30 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+__debug_bin*
+
+# Test binary, built with `go test -c`, etc.
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Project specific ignores
+*.db
+*.txt*
+*.csv
+*.tar.gz
+.idea/
+1.txt
+deffer.txt
+fail.txt
+ns.txt
+nsIP.txt
+type65.txt
+vip.txt
