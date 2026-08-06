@@ -197,7 +197,7 @@ func (t *TraceResult) digTrace(domain string, depth int, Qtype ...uint16) error 
 	}
 
 	//初始化查询
-	digResponse, _ := getDNSStatus(".", "112.4.0.55", QueryType)
+	digResponse, _ := getDNSStatus(".", "127.0.0.1", QueryType)
 	//fmt.Println(digResponse)
 
 	//获取NS和父级NS
@@ -280,7 +280,7 @@ func digTraceSimple(domain string, depth int, Qtype ...uint16) ([]string, error)
 	if depth > maxDepth {
 		return nil, errors.New("超过最大递归深度")
 	}
-	digResponse, _ := getDNSStatus(".", "112.4.0.55", QueryType)
+	digResponse, _ := getDNSStatus(".", "127.0.0.1", QueryType)
 
 	for digResponse.RCode == 0 && len(digResponse.RR_AUTHNS) > 0 {
 

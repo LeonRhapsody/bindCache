@@ -1,0 +1,1 @@
+import{b as n,h as c}from"./index-CbU_ucpX.js";function v(u,e){return{...n(s=>c.events({type:u,level:e.level,status:e.status,evidence:e.evidence,q:e.q,page:1,limit:100},s),[!1,u,e.level,e.status,e.evidence,e.q]),useMock:!1}}export{v as u};

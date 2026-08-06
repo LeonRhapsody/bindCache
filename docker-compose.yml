@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # ClickHouse 数据库服务，提供快照数据的高性能存储与快速隐患查询
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: bind-cache-clickhouse
+    ports:
+      - "127.0.0.1:9000:9000" # TCP 原生端口，仅本机访问
+      - "127.0.0.1:8123:8123" # HTTP 端口，仅本机访问
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=bind_cache_analyze
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    restart: always
+
+  # bindCacheAnalyze 主程序容器，提供 Web 可视化面板
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bind-cache-analyze-app
+    ports:
+      - "127.0.0.1:8888:8888"
+    environment:
+      CLICKHOUSE_DSN: ${CLICKHOUSE_DSN:?set CLICKHOUSE_DSN with host clickhouse}
+    depends_on:
+      - clickhouse
+    volumes:
+      - ./config.json:/etc/bind-cache-analyze/config.json
+      - ./data:/data/bind-cache
+    command: ["-web-db", "-listen", "0.0.0.0", "-config", "/etc/bind-cache-analyze/config.json"]
+    restart: always
+
+volumes:
+  clickhouse_data:

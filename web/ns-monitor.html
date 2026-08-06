@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>递归 NS 基线监测</title>
+  <style>
+    :root { color-scheme:light; --bg:#edf1f5; --panel:#fffdfa; --panel-2:#f5f8fb; --line:#d9e1e9; --text:#182536; --muted:#5b6b7e; --primary:#316cab; --critical:#c84a58; --high:#b86621; --medium:#987008; --low:#197b58; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:320px; color:var(--text); background:radial-gradient(circle at 76% 0%,#ffffff 0,#f2f5f8 42rem,#eaf0f5 100%); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input,select { font:inherit; }
+    button { color:inherit; cursor:pointer; }
+    .app { min-height:100vh; display:grid; grid-template-columns:228px minmax(0,1fr); }
+    aside { padding:24px 14px; border-right:1px solid var(--line); background:rgba(250,252,253,.88); }
+    .brand { padding:0 12px 24px; font-size:20px; font-weight:720; letter-spacing:.02em; }
+    .brand small { display:block; margin-top:5px; color:#63778e; font-size:14px; font-weight:500; }
+    nav { display:grid; gap:6px; }
+    nav button { width:100%; padding:12px; border:0; border-radius:8px; text-align:left; background:transparent; color:var(--muted); font-size:16px; }
+    nav button:hover, nav button.active { color:#183f69; background:#e6eff9; }
+    main { min-width:0; padding:26px clamp(18px,4vw,54px) 44px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:23px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:30px; letter-spacing:.01em; }
+    h2 { font-size:22px; }
+    h3 { font-size:17px; }
+    .subtle { color:var(--muted); }
+    .status { display:inline-flex; align-items:center; gap:7px; color:#52667d; white-space:nowrap; }
+    .dot { width:9px; height:9px; border-radius:50%; background:var(--low); box-shadow:0 0 0 4px rgba(25,123,88,.15); }
+    .button { border:1px solid #aac3df; border-radius:7px; padding:9px 14px; background:#edf4fc; color:#234f7e; }
+    .button:hover { background:#e0edf9; }
+    .view { display:none; }
+    .view.active { display:block; }
+    .grid { display:grid; gap:14px; }
+    .stats { grid-template-columns:repeat(5,minmax(0,1fr)); }
+    .card { padding:18px; min-width:0; border:1px solid var(--line); border-radius:11px; background:linear-gradient(145deg,#fffefb,#f7f9fc); box-shadow:0 9px 24px rgba(47,67,90,.08); }
+    .metric-label { color:var(--muted); font-size:14px; }
+    .metric { margin-top:5px; font-size:32px; font-weight:720; }
+    .metric.small { font-size:25px; }
+    .risk-critical { color:var(--critical); } .risk-high { color:var(--high); } .risk-medium { color:var(--medium); } .risk-low { color:var(--low); }
+    .section { margin-top:20px; }
+    .section-head { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:10px; }
+    .section-head p { color:var(--muted); margin-top:4px; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:10px; background:#fffefb; }
+    table { width:100%; min-width:700px; border-collapse:collapse; }
+    th,td { padding:13px 15px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { position:sticky; top:0; background:#f0f4f8; color:#50647a; font-size:14px; font-weight:650; }
+    tbody tr:last-child td { border-bottom:0; } tbody tr:hover { background:#f4f8fc; }
+    .pill { display:inline-flex; align-items:center; padding:3px 9px; border:1px solid currentColor; border-radius:99px; font-size:13px; font-weight:650; white-space:nowrap; }
+    .pill.critical { color:var(--critical); background:rgba(255,95,114,.08); } .pill.high { color:var(--high); background:rgba(255,154,92,.08); } .pill.medium { color:var(--medium); background:rgba(246,204,104,.08); } .pill.low { color:var(--low); background:rgba(95,206,156,.08); }
+    .pill.pending_verification { color:#316cab; } .pill.resolved { color:#277a58; }
+    .tags { display:flex; flex-wrap:wrap; gap:5px; }
+    .tag { padding:3px 7px; border-radius:5px; color:#2d5f94; background:#e7eef7; font-size:13px; }
+    .notice { display:flex; gap:11px; padding:15px; border:1px solid #b9d0e8; border-radius:9px; background:#edf5fd; color:#36516f; }
+    .notice strong { color:#1c3e65; }
+    .rules { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .rule p { margin-top:6px; color:var(--muted); font-size:14px; }
+    .filters { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    input,select { height:40px; padding:0 11px; color:var(--text); border:1px solid #b8c8d9; border-radius:7px; outline:none; background:#fffefb; }
+    input:focus,select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(49,108,171,.13); }
+    .filters input { min-width:230px; }
+    .link { border:0; padding:0; color:#2864a1; background:transparent; text-decoration:underline; text-underline-offset:3px; }
+    .empty { padding:28px; color:var(--muted); text-align:center; }
+    .domain-search { display:flex; gap:9px; max-width:720px; }
+    .domain-search input { flex:1; }
+    .comparison { grid-template-columns:1fr 1fr; }
+    .panel-title { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:11px; border-bottom:1px solid var(--line); }
+    .ns-item { padding:13px 0; border-bottom:1px solid var(--line); } .ns-item:last-child { border-bottom:0; }
+    .ns-name { color:#234f7d; font-weight:700; overflow-wrap:anywhere; }
+    .ns-meta { margin-top:5px; color:var(--muted); font-size:14px; }
+    .addresses { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+    .address { padding:4px 7px; border-radius:5px; background:#e8f0f8; color:#245986; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
+    .address.reserved { color:#a43645; background:#fbe8ea; }
+    .endpoint-evidence { margin-top:14px; padding:13px; border:1px solid #b9cada; border-radius:8px; background:#f7fafc; }.endpoint-evidence h5 { margin:0; color:#294e75; font-size:15px; }.endpoint-evidence > p { margin:4px 0 8px; color:var(--muted); font-size:13px; }.endpoint-evidence .ns-item { padding:10px 0; }
+    .network-delta { display:grid; gap:10px; margin-top:10px; padding:12px; border:1px dashed color-mix(in srgb,var(--node) 48%,#b5c6d7); border-radius:7px; background:color-mix(in srgb,var(--node) 6%,#f8fbfd); }.network-delta-title { color:#34597c; font-size:14px; font-weight:720; }.network-delta-host-card { padding:10px; border:1px solid color-mix(in srgb,var(--node) 22%,#d2dfe9); border-radius:7px; background:#fffefb; }.network-delta-host { margin-bottom:8px; overflow-wrap:anywhere; color:#234f7d; font:700 13px ui-monospace,SFMono-Regular,Menlo,monospace; }.network-delta-grid { display:grid; gap:5px; }.network-delta-row { display:grid; grid-template-columns:86px minmax(0,1fr) 22px minmax(0,1fr); align-items:stretch; gap:6px; color:#39546f; font-size:13px; }.network-delta-row.header { align-items:center; color:#61758a; font-size:12px; font-weight:700; }.network-delta-key { display:flex; align-items:center; color:#315a83; font-weight:720; }.network-delta-cell { display:flex; flex-wrap:wrap; align-content:center; gap:4px; min-height:31px; padding:5px 7px; border-radius:5px; overflow-wrap:anywhere; }.network-delta-cell.old { color:#526a81; background:#eef3f8; font-weight:560; }.network-delta-cell.new { color:#8a4b17; background:#fff0e5; font-weight:750; }.network-delta-arrow { display:grid; place-items:center; color:var(--node); font-size:16px; font-weight:900; }.network-delta-value { overflow-wrap:anywhere; }.network-delta-value + .network-delta-value::before { content:'、'; color:#94a5b6; font-weight:500; }
+    .timeline-legend { display:flex; flex-wrap:wrap; gap:10px; margin:13px 0 4px; color:var(--muted); font-size:14px; }
+    .legend-item { display:inline-flex; align-items:center; gap:6px; }.legend-dot { width:8px; height:8px; border-radius:50%; background:var(--legend-color); box-shadow:0 0 0 3px color-mix(in srgb, var(--legend-color) 18%, transparent); }
+    .timeline { display:flex; flex-direction:column; gap:12px; margin-top:16px; }
+    .timeline-event { --node:#65cff0; display:grid; grid-template-columns:124px 26px minmax(0,1fr); grid-template-rows:auto auto; column-gap:14px; position:relative; min-height:82px; }
+    .timeline-event.risk-low { --node:var(--low); }.timeline-event.risk-medium { --node:var(--medium); }.timeline-event.risk-high { --node:var(--high); }.timeline-event.risk-critical { --node:var(--critical); }
+    .timeline-event.event-resolved,.timeline-event.baseline-rolled { --node:var(--low); }.timeline-event.normal { --node:#7aa0d6; }.timeline-event.baseline { --node:#65cff0; }
+    .timeline-stamp { grid-column:1; grid-row:1; padding-top:11px; text-align:right; }
+    .timeline-stamp time { display:flex; flex-direction:column; color:#63768a; font-variant-numeric:tabular-nums; line-height:1.35; }
+    .timeline-stamp strong { color:#314b66; font-size:13px; font-weight:700; }.timeline-stamp span { margin-top:2px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .timeline-rail { grid-column:2; grid-row:1 / span 2; position:relative; align-self:stretch; min-height:82px; }
+    .timeline-rail::before { content:""; position:absolute; top:-12px; bottom:-12px; left:50%; width:2px; border-radius:2px; background:#d5e0e9; transform:translateX(-50%); }
+    .timeline-event:first-child .timeline-rail::before { top:22px; }.timeline-event:last-child .timeline-rail::before { bottom:calc(100% - 22px); }
+    .timeline-node { position:absolute; z-index:1; top:13px; left:50%; display:grid; width:20px; height:20px; place-items:center; border:3px solid #fffdfa; border-radius:50%; color:#fff; background:var(--node); box-shadow:0 0 0 1px color-mix(in srgb,var(--node) 48%,#fff),0 3px 9px rgba(35,61,83,.16); font-size:10px; font-weight:900; transform:translateX(-50%); }
+    .timeline-node::before { content:""; position:absolute; inset:-6px; border:1px solid var(--node); border-radius:50%; opacity:0; }
+    .timeline-event.event-started .timeline-node::before,.timeline-event.event-active .timeline-node::before { animation:node-pulse 2.1s ease-out infinite; }
+    .timeline-card { grid-column:3; grid-row:1; display:block; width:100%; padding:13px 15px; overflow:hidden; color:inherit; border:1px solid #d7e0e8; border-radius:9px; text-align:left; background:#fffefb; box-shadow:inset 3px 0 0 var(--node),0 3px 10px rgba(47,67,90,.045); cursor:pointer; transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease; }
+    .timeline-card:hover:not(:disabled) { border-color:color-mix(in srgb,var(--node) 54%,#ccd8e3); box-shadow:inset 3px 0 0 var(--node),0 6px 16px rgba(47,67,90,.08); transform:translateY(-1px); }.timeline-card:focus-visible { border-color:var(--node); outline:2px solid color-mix(in srgb,var(--node) 32%,transparent); outline-offset:2px; }.timeline-card[aria-expanded="true"] { border-color:color-mix(in srgb,var(--node) 62%,#cbd7e2); background:color-mix(in srgb,var(--node) 3%,#fffefb); box-shadow:inset 3px 0 0 var(--node),0 0 0 1px color-mix(in srgb,var(--node) 12%,transparent); }.timeline-card:disabled { cursor:not-allowed; opacity:.68; }
+    .timeline-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }.timeline-title { color:#21364d; font-size:16px; font-weight:720; }.timeline-card-action { flex:0 0 auto; margin-top:1px; color:#53708d; font-size:12px; font-weight:650; }.timeline-card-action::after { content:"⌄"; display:inline-block; margin-left:5px; color:var(--node); font-size:14px; transition:transform .16s ease; }.timeline-card[aria-expanded="true"] .timeline-card-action::after { transform:rotate(180deg); }.timeline-detail { margin-top:4px; color:#52667b; font-size:13px; }.timeline-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }.timeline-meta .tag { color:#46637e; background:#eef3f7; }
+    .record-expansion { grid-column:3; grid-row:2; margin:8px 0 2px; padding:16px; border:1px solid #c4d2de; border-radius:9px; background:#f7fafc; box-shadow:inset 3px 0 0 var(--node); }.record-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }.record-head h4 { margin:0; color:#213b57; font-size:17px; }.record-head p { margin:4px 0 0; color:var(--muted); font-size:14px; }.record-groups { display:grid; gap:9px; margin-top:13px; }.rr-group { border:1px solid #cbd7e3; border-radius:7px; background:#fffefb; }.rr-group[open] { border-color:#9db9d8; }.rr-group summary { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; color:#294e75; cursor:pointer; font-weight:700; }.rr-group summary::marker { color:#316cab; }.rr-list { display:grid; gap:8px; padding:0 11px 11px; }.rr-row { display:grid; gap:5px; padding:9px; border-radius:5px; background:#f0f5fa; }.rr-field { display:grid; grid-template-columns:135px minmax(0,1fr); gap:8px; color:#435c77; font-size:14px; }.rr-key { color:#356a9f; }.rr-value { overflow-wrap:anywhere; color:#243d57; white-space:pre-wrap; font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }.record-loading,.record-error { padding:8px 0 0; color:var(--muted); font-size:14px; }.record-error { color:#aa3545; }
+    .impact-panel { display:grid; gap:11px; margin-top:14px; padding:13px; border:1px solid #c8d8e6; border-radius:8px; background:#f8fbfe; }.impact-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }.impact-head h5 { margin:0; color:#294e75; font-size:15px; }.impact-head p,.impact-scope { margin:0; color:var(--muted); font-size:13px; }.impact-target { padding:11px; border:1px solid #d4e0eb; border-radius:7px; background:#fffefb; }.impact-target-title { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; color:#234f7d; font-weight:720; }.impact-target-reason { margin:4px 0 8px; color:#607287; font-size:13px; }.impact-domains { display:flex; flex-wrap:wrap; gap:6px; max-height:310px; overflow:auto; padding:2px; }.impact-domain { padding:4px 7px; border:1px solid #c8d9e8; border-radius:5px; color:#285c90; background:#eef5fb; font:13px ui-monospace,SFMono-Regular,Menlo,monospace; text-align:left; overflow-wrap:anywhere; }.impact-domain:hover { background:#dfedf9; }.impact-via { display:block; margin-top:4px; color:#6b7c8f; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
+    .probe-panel { display:grid; gap:11px; margin-top:14px; padding:13px; border:1px solid #b8d4cb; border-radius:8px; background:#f5fbf8; }.probe-panel.verified_impact { border-color:#d98059; background:#fff9f3; }.probe-panel.verified_ns_divergence { border-color:#d4ad56; background:#fffcf4; }.probe-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }.probe-head h5 { margin:0; color:#285b4c; font-size:15px; }.probe-head p { margin:3px 0 0; color:var(--muted); font-size:13px; }.probe-domain { padding:11px; border:1px solid #cadfd6; border-radius:7px; background:#fffefb; }.probe-domain-title { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; color:#285b4c; font:700 14px ui-monospace,SFMono-Regular,Menlo,monospace; }.probe-summary { margin:5px 0 9px; color:#536d67; font-size:13px; }.probe-matrix { display:grid; grid-template-columns:130px minmax(0,1fr); gap:6px 10px; align-items:start; }.probe-key { padding:7px 0; color:#507067; font-size:13px; font-weight:700; }.probe-value { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }.probe-answer { display:inline-flex; flex-wrap:wrap; gap:4px; padding:5px 7px; border:1px solid #d3e2db; border-radius:5px; color:#294a41; background:#f1f8f4; font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }.probe-answer.mismatch { border-color:#e2b184; color:#8a3d22; background:#fff1e7; }.probe-answer.error { border-color:#e3c6c6; color:#9c4451; background:#fff4f4; }.probe-answer strong { font-family:inherit; }.probe-answer .probe-host { color:#3d6f61; font-weight:800; }.probe-panel details { border-top:1px solid #d9e7e1; padding-top:9px; }.probe-panel summary { color:#38665a; cursor:pointer; font-size:13px; font-weight:700; }.probe-footnote { margin:0; color:#687d77; font-size:12px; }
+    @keyframes node-pulse { 0% { opacity:.72; transform:scale(.45); } 70% { opacity:0; transform:scale(1.35); } 100% { opacity:0; transform:scale(1.35); } }
+    @media (prefers-reduced-motion:reduce) { .timeline-event.event-started .timeline-node::before,.timeline-event.event-active .timeline-node::before { animation:none; } }
+    .error { margin-top:12px; padding:12px; border-radius:7px; color:#9c3141; background:#fcebed; }
+    .hidden { display:none !important; }
+    /* 信息密度：保持可读性，同时避免大屏上事件表与时间线显得臃肿。 */
+    body { font-size:15px; }
+    .brand { font-size:18px; }.brand small,.metric-label,.rule p,.ns-meta { font-size:13px; }
+    nav button { font-size:15px; padding:10px 12px; } main { padding-top:22px; }
+    h1 { font-size:27px; } h2 { font-size:21px; } h3 { font-size:16px; }
+    .card { padding:16px; }.metric { font-size:29px; }.metric.small { font-size:23px; }
+    th,td { padding:11px 13px; } th { font-size:13px; }.pill,.tag { font-size:12px; }
+    .timeline { gap:10px; }.timeline-card { padding:12px 14px; }.timeline-title { font-size:16px; }.timeline-detail { font-size:13px; }
+    .record-expansion { padding:14px; }.record-head h4 { font-size:16px; }.record-head p,.rr-field,.record-loading,.record-error { font-size:13px; }
+    @media (max-width:1000px) { .stats { grid-template-columns:repeat(3,1fr); } .rules { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:720px) { .app { display:block; } aside { display:flex; align-items:center; overflow:auto; padding:10px 12px; border-right:0; border-bottom:1px solid var(--line); } .brand { min-width:154px; padding:0 10px 0 0; } nav { display:flex; } nav button { white-space:nowrap; } main { padding:20px 14px 34px; } .topbar { align-items:start; } .stats,.comparison { grid-template-columns:1fr 1fr; } .rules { grid-template-columns:1fr; } .domain-search { flex-wrap:wrap; } .domain-search input { min-width:100%; }.timeline-event { grid-template-columns:22px minmax(0,1fr); grid-template-rows:auto auto auto; column-gap:10px; }.timeline-stamp { grid-column:2; grid-row:1; padding:0 0 5px; text-align:left; }.timeline-stamp time { flex-direction:row; gap:8px; align-items:baseline; }.timeline-stamp span { margin:0; }.timeline-rail { grid-column:1; grid-row:1 / span 3; }.timeline-card { grid-column:2; grid-row:2; }.record-expansion { grid-column:2; grid-row:3; }.timeline-node { top:28px; }.timeline-event:first-child .timeline-rail::before { top:37px; }.timeline-event:last-child .timeline-rail::before { bottom:calc(100% - 37px); }.timeline-top { gap:8px; }.timeline-card-action { font-size:0; }.timeline-card-action::after { margin-left:0; font-size:15px; }.rr-field { grid-template-columns:1fr; gap:2px; }.network-delta-row { grid-template-columns:66px minmax(0,1fr) 16px minmax(0,1fr); gap:4px; }.network-delta-cell { padding:5px; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">递归 NS 基线<small>Snapshot Risk Monitor</small></div>
+      <nav aria-label="主导航">
+        <button class="active" data-target="overview">概览</button>
+        <button data-target="events">告警事件 <span id="navActiveCount"></span></button>
+        <button data-target="domain">域名追溯</button>
+      </nav>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div><h1 id="pageTitle">基线概览</h1><p class="subtle" id="pageSubtitle">正在读取 NS 时序数据。</p></div>
+        <div><span class="status"><span class="dot"></span><span id="dataMode">只读分析</span></span> <button class="button" id="refreshButton">刷新数据</button></div>
+      </div>
+
+      <section id="overview" class="view active">
+        <div class="grid stats">
+          <article class="card"><div class="metric-label">已加载快照</div><div class="metric" id="snapshotCount">—</div><div class="subtle" id="latestTime">—</div></article>
+          <article class="card"><div class="metric-label">已确认基线域名</div><div class="metric" id="domainCount">—</div><div class="subtle">连续 12 次有效观测一致</div></article>
+          <article class="card"><div class="metric-label">严重 / 保留地址</div><div class="metric risk-critical" id="criticalCount">—</div><div class="subtle">立即人工核验</div></article>
+          <article class="card"><div class="metric-label">高风险</div><div class="metric risk-high" id="highCount">—</div><div class="subtle">跨主域或双变更</div></article>
+          <article class="card"><div class="metric-label">待验证事件</div><div class="metric risk-medium" id="activeCount">—</div><div class="subtle" id="geoStatus">—</div></article>
+        </div>
+        <section class="section">
+          <div class="notice"><div>i</div><div id="storageNotice"><strong>事件不是投毒结论。</strong>缓存快照只能证明递归器在该时刻观测到的 NS 状态；高风险事件需要继续用权威委派核验。</div></div>
+        </section>
+        <section class="section">
+          <div class="section-head"><div><h2>风险分级规则</h2><p>无 ASN/国家数据时仅标记“元数据未知”，不会因猜测提升等级。</p></div></div>
+          <div class="grid rules">
+            <article class="card rule"><h3 class="risk-low">低风险</h3><p>NS 减少、数量变化仍在原注册域，或同一 NS 的 IP 变化但 ASN 和国家均一致。</p></article>
+            <article class="card rule"><h3 class="risk-medium">中风险</h3><p>同一 NS IP 变更，且 ASN 或国家其中一项发生变化。</p></article>
+            <article class="card rule"><h3 class="risk-high">高风险</h3><p>新增 NS 跨注册域；或同一 NS IP 的 ASN 和国家同时变化。</p></article>
+            <article class="card rule"><h3 class="risk-critical">严重</h3><p>NS 端点落入私网、回环、链路本地、多播或未指定地址空间。</p></article>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section-head"><div><h2>已载入的快照</h2><p>按 dump 内的 $DATE 排序；缺失日期时使用文件修改时间。</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>采集时间</th><th>来源</th><th>缓存域名</th><th>高可信 NS 观测</th></tr></thead><tbody id="snapshotTable"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="events" class="view">
+        <div class="section-head"><div><h2>NS 变更事件</h2><p>按风险等级和最近一次观测时间排序；同域名同类变化合并为事件簇，原始记录仍可在域名时间线追溯。</p></div></div>
+        <div class="filters card">
+          <input id="eventQuery" placeholder="按域名或摘要搜索">
+          <select id="severityFilter"><option value="">全部等级</option><option value="critical">严重</option><option value="high">高风险</option><option value="medium">中风险</option><option value="low">低风险</option></select>
+          <select id="statusFilter"><option value="">全部状态</option><option value="pending_verification">待验证</option><option value="verified_ns_divergence">已确认 NS 分歧</option><option value="verified_impact">已确认实际影响</option><option value="resolved">已恢复</option></select>
+          <button class="button" id="filterButton">筛选</button>
+          <span class="subtle" id="eventTotal"></span>
+        </div>
+        <div class="section table-wrap"><table><thead><tr><th>等级</th><th>域名</th><th>变化摘要</th><th>证据</th><th>状态</th><th>最后观测</th></tr></thead><tbody id="eventTable"></tbody></table><div id="eventEmpty" class="empty hidden">没有匹配的 NS 变更事件。</div></div>
+      </section>
+
+      <section id="domain" class="view">
+        <div class="section-head"><div><h2>域名 NS 追溯</h2><p>比较第一个高可信观测基线与最新快照状态。</p></div></div>
+        <form class="domain-search" id="domainForm"><input id="domainInput" list="domainSuggestions" placeholder="例如 example.com." autocomplete="off"><datalist id="domainSuggestions"></datalist><button class="button" type="submit">查询域名</button></form>
+        <div id="domainError" class="error hidden"></div>
+        <div id="domainResult" class="hidden">
+          <section class="section"><div class="card"><div class="panel-title"><div><h3 id="detailDomain"></h3><p class="subtle" id="detailMeta"></p></div><div id="detailRisk"></div></div><div id="detailChanges" class="tags" style="margin-top:12px"></div><div id="detailEvidence"></div></div></section>
+          <section class="section grid comparison"><article class="card"><div class="panel-title"><h3 id="baselineTitle">权威基线</h3><span id="baselineTime" class="subtle"></span></div><div id="baselineNS"></div></article><article class="card"><div class="panel-title"><h3>最新状态</h3><span id="currentTime" class="subtle"></span></div><div id="currentNS"></div></article></section>
+          <section class="section"><div class="card"><div class="panel-title"><div><h3>风险事件轨道</h3><p class="subtle">从基线到风险出现、持续观测和恢复的生命周期。</p></div><span class="subtle">最近快照在上</span></div><div class="timeline-legend" aria-label="时间线图例"><span class="legend-item"><i class="legend-dot" style="--legend-color:#65cff0"></i>基线</span><span class="legend-item"><i class="legend-dot" style="--legend-color:#ff9a5c"></i>风险开始 / 持续</span><span class="legend-item"><i class="legend-dot" style="--legend-color:#5fce9c"></i>恢复</span></div><div id="timeline" class="timeline"></div></div></section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const labels = { critical:'严重', high:'高风险', medium:'中风险', low:'低风险', pending_verification:'待权威验证', verified_ns_divergence:'已确认 NS 分歧', verified_impact:'已确认实际影响', resolved:'已恢复', observed:'单次缓存观测', repeated:'多次缓存重复', verified:'组内与递归拨测已验证' };
+    const timelineStates = {
+      baseline: { title:'建立权威基线', detail:'连续 12 次观测到同一高可信 NS 委派状态', css:'baseline', glyph:'✓' },
+      normal: { title:'基线一致', detail:'当前 NS 状态与权威基线一致', css:'normal', glyph:'✓' },
+      event_started: { title:'风险事件开始', detail:'检测到 NS 委派或端点发生风险变化', css:'event-started', glyph:'!' },
+      event_active: { title:'风险持续观测', detail:'同一风险状态在后续快照中再次出现', css:'event-active', glyph:'!' },
+      event_resolved: { title:'风险事件恢复', detail:'NS 状态重新与权威基线一致', css:'event-resolved', glyph:'✓' },
+      baseline_rolled: { title:'基线滚动更新', detail:'新 NS 结果已连续出现 12 次，保留原风险事件后替换基线', css:'baseline-rolled', glyph:'✓' },
+      changed: { title:'检测到状态变化', detail:'NS 状态与基线不同', css:'event-started', glyph:'!' }
+    };
+    const recordKinds = { positive:'正向缓存', nxdomain:'NXDOMAIN 缓存', nxrrset:'NXRRSET 缓存' };
+    const titles = { overview:['基线概览','正在读取 NS 时序数据。'], events:['告警事件','事件保留原始观测状态，待后续权威 DNS 验证。'], domain:['域名追溯','查看域名的基线、当前 NS 与变更时间线。'] };
+    let overviewData = null;
+    let activeDomainDetail = null;
+    const expandedTimelineKeys = new Set();
+    const expandedRecords = new Map();
+    const expandedRecordLoading = new Set();
+    const expandedRecordErrors = new Map();
+    const eventImpacts = new Map();
+    const eventImpactLoading = new Set();
+    const eventImpactErrors = new Map();
+    const eventProbes = new Map();
+    const eventProbeLoading = new Set();
+    const eventProbeErrors = new Map();
+    const $ = id => document.getElementById(id);
+    const escapeHTML = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = value => value ? new Date(value).toLocaleString('zh-CN', { hour12:false }) : '—';
+    const timelineTimestamp = value => {
+      const parsed = value ? new Date(value) : null;
+      if (!parsed || Number.isNaN(parsed.getTime())) return { day:'—', clock:'', iso:'' };
+      return {
+        day:parsed.toLocaleDateString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit' }),
+        clock:parsed.toLocaleTimeString('zh-CN', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' }),
+        iso:parsed.toISOString()
+      };
+    };
+    const riskPill = value => `<span class="pill ${escapeHTML(value)}">${escapeHTML(labels[value] || value)}</span>`;
+    const tags = values => values?.map(v => `<span class="tag">${escapeHTML(v)}</span>`).join('') || '<span class="subtle">无</span>';
+    const compactTags = (values, limit = 2) => {
+      const list = values || [];
+      const visible = list.slice(0, limit).map(v => `<span class="tag">${escapeHTML(v)}</span>`).join('');
+      return visible + (list.length > limit ? `<span class="tag">+${list.length - limit}</span>` : '') || '<span class="subtle">无</span>';
+    };
+
+    async function request(path) {
+      const response = await fetch(path, { headers:{Accept:'application/json'} });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `请求失败 (${response.status})`);
+      return body;
+    }
+
+    async function loadOverview() {
+      const data = await request('/api/ns/overview');
+      overviewData = data;
+      const o = data.overview;
+      const persistent = data.mode === 'clickhouse';
+      titles.overview[1] = persistent ? '来自 ClickHouse 的持久化 NS 时序数据。' : '从当前进程的内存快照比对得出，尚未落库。';
+      $('dataMode').textContent = persistent ? 'ClickHouse 持久化只读' : '内存调试分析';
+      $('storageNotice').innerHTML = persistent
+        ? '<strong>事件不是投毒结论。</strong>页面读取 ClickHouse 持久化观测；目录监测器追加新 dump 后会自动刷新。高风险事件仍需要权威委派核验。'
+        : '<strong>事件不是投毒结论。</strong>缓存快照只能证明递归器在该时刻观测到的 NS 状态；高风险事件需要继续用权威委派核验。当前调试模式不发送邮件、不写 ClickHouse。';
+      $('snapshotCount').textContent = o.snapshots;
+      $('domainCount').textContent = o.tracked_domains.toLocaleString('zh-CN');
+      $('criticalCount').textContent = o.event_counts.critical || 0;
+      $('highCount').textContent = o.event_counts.high || 0;
+      $('activeCount').textContent = o.active_events;
+      $('navActiveCount').textContent = o.active_events ? `(${o.active_events})` : '';
+      $('latestTime').textContent = o.latest_snapshot?.captured_at ? `最新：${date(o.latest_snapshot.captured_at)}` : '暂无快照';
+      $('geoStatus').textContent = persistent ? '持久化数据' : (o.geolite_loaded ? `GeoLite：${o.geolite_source}` : 'GeoLite 未加载');
+      $('snapshotTable').innerHTML = data.snapshots.map(s => `<tr><td>${date(s.captured_at)}</td><td>${escapeHTML(s.source)}</td><td>${Number(s.domains).toLocaleString('zh-CN')}</td><td>${Number(s.ns_observations).toLocaleString('zh-CN')}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">未载入快照。</td></tr>';
+      if (o.warnings?.length) console.warn('NS monitor warnings:', o.warnings);
+    }
+
+    async function loadEvents() {
+      const query = new URLSearchParams({ limit:'100' });
+      if ($('eventQuery').value.trim()) query.set('q', $('eventQuery').value.trim());
+      if ($('severityFilter').value) query.set('severity', $('severityFilter').value);
+      if ($('statusFilter').value) query.set('status', $('statusFilter').value);
+      const data = await request(`/api/ns/events?${query}`);
+      $('eventTotal').textContent = `共 ${data.total} 个事件簇`;
+      $('eventEmpty').classList.toggle('hidden', data.events.length > 0);
+      $('eventTable').innerHTML = data.events.map(e => {
+        const clusters = Number(e.merged_events || 1);
+        const evidence = `${escapeHTML(labels[e.evidence] || e.evidence)}<br><span class="subtle">${clusters > 1 ? `已合并 ${clusters} 个相似事件 · ` : ''}${Number(e.occurrences || 0)} 次观测</span>`;
+        return `<tr><td>${riskPill(e.severity)}</td><td><button class="link open-domain" data-domain="${escapeHTML(e.domain)}">${escapeHTML(e.domain)}</button></td><td><div>${escapeHTML(e.summary)}</div><div class="tags" style="margin-top:5px">${compactTags(e.change_types)}</div></td><td>${evidence}</td><td>${riskPill(e.status)}</td><td>${escapeHTML(e.last_seen)}</td></tr>`;
+      }).join('');
+      document.querySelectorAll('.open-domain').forEach(button => button.addEventListener('click', () => openDomain(button.dataset.domain)));
+    }
+
+    async function loadSuggestions() {
+      const input = $('domainInput').value.trim();
+      const data = await request(`/api/ns/domains?q=${encodeURIComponent(input)}&limit=30`);
+      $('domainSuggestions').innerHTML = data.domains.map(d => `<option value="${escapeHTML(d)}"></option>`).join('');
+    }
+
+    function renderNSItems(items) {
+      return items?.map(ns => {
+        const meta = `注册域：${ns.registered_domain || '未知'} · ${ns.attribute || 'unknown'} · 信任 ${ns.trust_level}`;
+        const addresses = ns.addresses?.length ? ns.addresses.map(a => `<span class="address ${a.reserved ? 'reserved':''}">${escapeHTML(a.address)}${a.asn ? ` · AS${a.asn}`:''}${a.country ? ` · ${escapeHTML(a.country)}`:''}</span>`).join('') : '<span class="subtle">未在同一缓存中找到 glue / A / AAAA</span>';
+        return `<div class="ns-item"><div class="ns-name">${escapeHTML(ns.name)}</div><div class="ns-meta">${escapeHTML(meta)}</div><div class="addresses">${addresses}</div></div>`;
+      }).join('') || '<div class="empty">无高可信 NS 观测。</div>';
+    }
+
+    function renderNS(items, target) {
+      $(target).innerHTML = renderNSItems(items);
+    }
+
+    function renderRecordNSEvidence(items) {
+      if (!items?.length) return '<div class="endpoint-evidence"><h5>NS 主机 A / AAAA 解析与网络归属</h5><p>该快照未保存 NS 主机端点信息。</p></div>';
+      return `<section class="endpoint-evidence"><h5>NS 主机 A / AAAA 解析与网络归属</h5><p>IP、ASN 与国家来自该时间点的 NS 端点观测；这部分记录的 owner 是 NS 主机，不是当前被查询域名。</p>${renderNSItems(items)}</section>`;
+    }
+
+    function addressSet(items) {
+      return (items || []).map(a => `${a.address || ''}|${a.asn || ''}|${a.asn_organization || ''}|${a.country || ''}|${a.reserved ? 'reserved' : 'public'}`).sort();
+    }
+
+    function uniqueValues(values, fallback) {
+      const result = [...new Set(values.filter(Boolean))].sort();
+      return result.length ? result : [fallback];
+    }
+
+    function endpointFields(items) {
+      const endpoints = items || [];
+      return {
+        ip: uniqueValues(endpoints.map(a => a.address), '无 A / AAAA'),
+        asn: uniqueValues(endpoints.map(a => a.asn ? `AS${a.asn}${a.asn_organization ? ` · ${a.asn_organization}` : ''}` : 'ASN 未知'), 'ASN 未知'),
+        country: uniqueValues(endpoints.map(a => a.country || '国家未知'), '国家未知'),
+        addressKind: uniqueValues(endpoints.map(a => a.reserved ? '保留地址' : '公网地址'), '无地址属性')
+      };
+    }
+
+    function sameNetworkField(before, after) {
+      return JSON.stringify(before) === JSON.stringify(after);
+    }
+
+    function renderNetworkValue(values, side) {
+      return `<div class="network-delta-cell ${side}">${values.map(value => `<span class="network-delta-value">${escapeHTML(value)}</span>`).join('')}</div>`;
+    }
+
+    function renderNetworkDeltaRow(label, before, after) {
+      if (sameNetworkField(before, after)) return '';
+      return `<div class="network-delta-row"><div class="network-delta-key">${escapeHTML(label)}</div>${renderNetworkValue(before, 'old')}<div class="network-delta-arrow" aria-hidden="true">→</div>${renderNetworkValue(after, 'new')}</div>`;
+    }
+
+    function renderNetworkHostDelta(host, before, after) {
+      const oldFields = endpointFields(before?.addresses);
+      const newFields = endpointFields(after?.addresses);
+      const rows = [
+        renderNetworkDeltaRow('IP', oldFields.ip, newFields.ip),
+        renderNetworkDeltaRow('ASN', oldFields.asn, newFields.asn),
+        renderNetworkDeltaRow('国家 / 地区', oldFields.country, newFields.country),
+        renderNetworkDeltaRow('地址属性', oldFields.addressKind, newFields.addressKind)
+      ].filter(Boolean).join('');
+      if (!rows) return '';
+      return `<div class="network-delta-host-card"><div class="network-delta-host">${escapeHTML(host)}</div><div class="network-delta-grid" role="table" aria-label="${escapeHTML(host)} 网络变化对比"><div class="network-delta-row header" role="row"><div>字段</div><div>基线 / 旧值</div><div></div><div>风险 / 新值</div></div>${rows}</div></div>`;
+    }
+
+    function renderEventNetworkDelta(event) {
+      if (!event || !event.change_types?.some(type => ['ns_ip_changed','ns_network_changed','reserved_ns_ip'].includes(type))) return '';
+      const before = new Map((event.baseline?.nameservers || []).map(ns => [ns.name, ns]));
+      const after = new Map((event.current?.nameservers || []).map(ns => [ns.name, ns]));
+      const hosts = [...new Set([...before.keys(), ...after.keys()])].sort();
+      const comparisons = hosts.filter(host => JSON.stringify(addressSet(before.get(host)?.addresses)) !== JSON.stringify(addressSet(after.get(host)?.addresses))).map(host => renderNetworkHostDelta(host, before.get(host), after.get(host))).filter(Boolean).join('');
+      if (!comparisons) return '';
+      return `<div class="network-delta"><div class="network-delta-title">NS 端点变化对比（左侧为基线旧值，右侧为风险新值）</div>${comparisons}</div>`;
+    }
+
+    function timelineSeverity(value) {
+      return ['critical','high','medium','low'].includes(value) ? value : 'low';
+    }
+
+    function timelinePointKey(point) {
+      return point.snapshot_id || `${point.captured_at || ''}:${point.event_id || point.state || ''}`;
+    }
+
+    function formatRRValue(value) {
+      if (value === null) return 'null';
+      if (Array.isArray(value)) return value.map(formatRRValue).join(', ');
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }
+
+    function renderRecordGroup(group) {
+      const rows = (group.records || []).map(item => {
+        const fields = Object.entries(item || {}).filter(([, value]) => value !== '' && value !== null && value !== undefined && (!Array.isArray(value) || value.length > 0));
+        return `<div class="rr-row">${fields.map(([key, value]) => `<div class="rr-field"><span class="rr-key">${escapeHTML(key)}</span><code class="rr-value">${escapeHTML(formatRRValue(value))}</code></div>`).join('') || '<span class="subtle">空记录</span>'}</div>`;
+      }).join('');
+      return `<details class="rr-group" open><summary><span>${escapeHTML(group.type)}</span><span class="subtle">${Number(group.count || 0)} 条</span></summary><div class="rr-list">${rows}</div></details>`;
+    }
+
+    function renderEventImpact(event) {
+      if (!event?.id) return '';
+      if (eventImpactLoading.has(event.id)) return '<section class="impact-panel"><div class="record-loading">正在解析同一风险快照中的子域与 CNAME 依赖…</div></section>';
+      const impactError = eventImpactErrors.get(event.id);
+      if (impactError) return `<section class="impact-panel"><div class="record-error">受影响域名读取失败：${escapeHTML(impactError)}</div></section>`;
+      const impact = eventImpacts.get(event.id);
+      if (!impact) return `<section class="impact-panel"><div class="impact-head"><div><h5>受影响名称</h5><p>列出事件域及其子域，以及 CNAME 指向该域名空间的外部域名。</p></div><button class="button impact-load" type="button" data-event-id="${escapeHTML(event.id)}">查看全部受影响名称</button></div></section>`;
+      const groupRows = (impact.groups || []).map(group => `<article class="impact-target"><div class="impact-target-title"><span>${escapeHTML(group.title)}</span><span class="tag">${Number(group.domains?.length || 0)} 个名称</span></div><p class="impact-target-reason">${escapeHTML(group.description)}</p><div class="impact-domains">${(group.domains || []).map(item => `<div><button class="impact-domain" type="button" data-domain="${escapeHTML(item.domain)}">${escapeHTML(item.domain)}</button>${item.target ? `<span class="impact-via">${item.cname_hops > 1 ? `CNAME 链 ${Number(item.cname_hops)} 跳 → ` : 'CNAME → '}${escapeHTML(item.target)}</span>` : ''}</div>`).join('') || '<span class="subtle">该快照未观察到该类名称。</span>'}</div></article>`).join('');
+      return `<section class="impact-panel"><div class="impact-head"><div><h5>受影响名称 · ${Number(impact.total_affected_domains || 0)} 个</h5><p>事件域：${escapeHTML(impact.event_domain || event.domain)} · 风险状态快照：${escapeHTML(date(impact.observed_at))}</p></div></div>${groupRows || '<div class="empty">该快照未识别到已缓存子域或 CNAME 依赖。</div>'}<p class="impact-scope">${escapeHTML(impact.scope || '')}</p></section>`;
+    }
+
+    function renderProbeAnswer(answer, host, mismatch = false) {
+      if (!answer) return `<span class="probe-answer error">${host ? `<span class="probe-host">${escapeHTML(host)}</span>` : ''}无有效响应</span>`;
+      if (answer.error) return `<span class="probe-answer error">${host ? `<span class="probe-host">${escapeHTML(host)}</span>` : ''}${escapeHTML(answer.error)}</span>`;
+      const values = [];
+      if (answer.cname?.length) values.push(`CNAME ${answer.cname.join(' → ')}`);
+      if (answer.ipv4?.length) values.push(`A ${answer.ipv4.join(', ')}`);
+      if (answer.ipv6?.length) values.push(`AAAA ${answer.ipv6.join(', ')}`);
+      if (!values.length) values.push(answer.rcode || '无 A / AAAA / CNAME');
+      if (answer.reserved_ips?.length) values.push(`保留地址 ${answer.reserved_ips.join(', ')}`);
+      if (answer.transport === 'tcp') values.push('TCP 回退');
+      return `<span class="probe-answer ${mismatch ? 'mismatch' : ''}">${host ? `<span class="probe-host">${escapeHTML(host)}</span>` : ''}${values.map(escapeHTML).join(' · ')}</span>`;
+    }
+
+    function renderProbeHosts(hosts) {
+      return (hosts || []).map(host => renderProbeAnswer(host.effective, host.host, host.matches_stable === false)).join('') || '<span class="probe-answer error">无有效 NS 响应</span>';
+    }
+
+    function renderEventProbe(event) {
+      if (!event?.id) return '';
+      if (eventProbeLoading.has(event.id)) return '<section class="probe-panel"><div class="record-loading">正在读取已入库的 NS 组内拨测证据…</div></section>';
+      const probeError = eventProbeErrors.get(event.id);
+      if (probeError) return `<section class="probe-panel"><div class="record-error">拨测证据读取失败：${escapeHTML(probeError)}</div></section>`;
+      const response = eventProbes.get(event.id);
+      if (!response) return `<section class="probe-panel"><div class="probe-head"><div><h5>NS 组内拨测</h5><p>稳定 NS 多数派 → 变异 NS → 两个可信 DNS → 受监控递归 DNS。</p></div><button class="button probe-load" type="button" data-event-id="${escapeHTML(event.id)}">查看拨测证据</button></div></section>`;
+      if (!response.available || !response.probe) return '<section class="probe-panel"><div class="probe-head"><div><h5>NS 组内拨测</h5><p>该事件发生时尚未启用自动拨测，或当前没有可形成组内共识的可直连 NS。</p></div></div></section>';
+      const probe = response.probe;
+      const domains = (probe.domains || []).map(item => `<article class="probe-domain"><div class="probe-domain-title"><span>${escapeHTML(item.domain)}</span><span>${escapeHTML(item.verdict === 'verified_impact' ? '已确认实际影响' : item.verdict === 'verified_ns_divergence' ? '已确认 NS 分歧' : item.verdict === 'consistent' ? '组内一致' : '证据不足')}</span></div><p class="probe-summary">${escapeHTML(item.summary || '')}</p><div class="probe-matrix"><div class="probe-key">稳定 NS 共识</div><div class="probe-value">${renderProbeAnswer(item.stable_consensus)}</div><div class="probe-key">稳定 NS（逐台）</div><div class="probe-value">${renderProbeHosts(item.stable_ns)}</div><div class="probe-key">变异 NS（逐台）</div><div class="probe-value">${renderProbeHosts(item.variant_ns)}</div><div class="probe-key">可信 DNS 共识</div><div class="probe-value">${renderProbeAnswer(item.trusted_consensus)}</div><div class="probe-key">受监控递归</div><div class="probe-value">${renderProbeAnswer(item.recursive_result, item.recursive_result?.resolver || '127.0.0.1')}</div></div></article>`).join('');
+      return `<section class="probe-panel ${escapeHTML(probe.verdict || '')}"><div class="probe-head"><div><h5>NS 组内拨测 · ${escapeHTML(probe.verdict === 'verified_impact' ? '已确认实际影响' : probe.verdict === 'verified_ns_divergence' ? '已确认 NS 分歧' : probe.verdict === 'consistent' ? '未发现分歧' : '证据不足')}</h5><p>${escapeHTML(probe.summary || '')}</p></div><span class="tag">${Number(probe.probed_domains || 0)} / ${Number(probe.domain_limit || 0)} 个名称</span></div>${domains || '<div class="empty">没有可展示的拨测名称。</div>'}<details><summary>判定口径</summary><p class="probe-footnote">只有至少两台未变化 NS 形成相同结果，且两个可信 DNS 也支持该结果时，才将变异 NS 的不同结果视为有效分歧；若受监控递归 DNS 返回同一异常结果，则标记为“已确认实际影响”。</p></details></section>`;
+    }
+
+    function renderRecordExpansion(point, key, event) {
+      if (!expandedTimelineKeys.has(key)) return '';
+      if (expandedRecordLoading.has(key)) return '<div class="record-expansion"><div class="record-loading">正在按需读取该快照的完整缓存记录…</div></div>';
+      const recordError = expandedRecordErrors.get(key);
+      if (recordError) return `<div class="record-expansion"><div class="record-error">${escapeHTML(recordError)}</div></div>`;
+      const expandedRecord = expandedRecords.get(key);
+      if (!expandedRecord) return '';
+      const snapshot = expandedRecord.snapshot || {};
+      return `<section class="record-expansion"><div class="record-head"><div><h4>完整缓存解析结果与变化证据</h4><p>${escapeHTML(recordKinds[expandedRecord.record_kind] || expandedRecord.record_kind || '缓存记录')} · ${escapeHTML(date(snapshot.captured_at))}</p></div><span class="tag">${Number(expandedRecord.groups?.length || 0)} 类域名自身 RR</span></div>${renderEventNetworkDelta(event)}${renderRecordNSEvidence(expandedRecord.ns_observation)}${renderEventProbe(event)}${renderEventImpact(event)}<div class="record-groups">${(expandedRecord.groups || []).map(renderRecordGroup).join('') || '<div class="empty">该快照中没有可展示的 RR。</div>'}</div></section>`;
+    }
+
+    function renderDomainTimeline() {
+      if (!activeDomainDetail) return;
+      $('timeline').innerHTML = renderTimeline(activeDomainDetail.timeline, activeDomainDetail.events, activeDomainDetail.domain);
+      document.querySelectorAll('.timeline-card[data-snapshot-id]').forEach(card => card.addEventListener('click', () => toggleSnapshotRecord(card.dataset.snapshotId, card.dataset.timelineKey)));
+      document.querySelectorAll('.impact-load').forEach(button => button.addEventListener('click', () => loadEventImpact(button.dataset.eventId)));
+      document.querySelectorAll('.probe-load').forEach(button => button.addEventListener('click', () => loadEventProbe(button.dataset.eventId)));
+      document.querySelectorAll('.impact-domain').forEach(button => button.addEventListener('click', () => openDomain(button.dataset.domain)));
+    }
+
+    async function loadEventImpact(eventID) {
+      if (!eventID || eventImpactLoading.has(eventID)) return;
+      eventImpactErrors.delete(eventID);
+      eventImpactLoading.add(eventID);
+      renderDomainTimeline();
+      try {
+        const impact = await request(`/api/ns/event-impact?event_id=${encodeURIComponent(eventID)}`);
+        eventImpacts.set(eventID, impact);
+      } catch (error) {
+        eventImpactErrors.set(eventID, error.message);
+      } finally {
+        eventImpactLoading.delete(eventID);
+        renderDomainTimeline();
+      }
+    }
+
+    async function loadEventProbe(eventID) {
+      if (!eventID || eventProbeLoading.has(eventID)) return;
+      eventProbeErrors.delete(eventID);
+      eventProbeLoading.add(eventID);
+      renderDomainTimeline();
+      try {
+        const probe = await request(`/api/ns/event-probe?event_id=${encodeURIComponent(eventID)}`);
+        eventProbes.set(eventID, probe);
+      } catch (error) {
+        eventProbeErrors.set(eventID, error.message);
+      } finally {
+        eventProbeLoading.delete(eventID);
+        renderDomainTimeline();
+      }
+    }
+
+    async function toggleSnapshotRecord(snapshotID, timelineKey) {
+      if (!activeDomainDetail || !snapshotID) return;
+      if (expandedTimelineKeys.has(timelineKey)) {
+        expandedTimelineKeys.delete(timelineKey);
+        expandedRecords.delete(timelineKey);
+        expandedRecordErrors.delete(timelineKey);
+        expandedRecordLoading.delete(timelineKey);
+        renderDomainTimeline();
+        return;
+      }
+      expandedTimelineKeys.add(timelineKey);
+      expandedRecords.delete(timelineKey);
+      expandedRecordErrors.delete(timelineKey);
+      expandedRecordLoading.add(timelineKey);
+      renderDomainTimeline();
+      try {
+        const record = await request(`/api/ns/record?domain=${encodeURIComponent(activeDomainDetail.domain)}&snapshot_id=${encodeURIComponent(snapshotID)}`);
+        if (expandedTimelineKeys.has(timelineKey)) expandedRecords.set(timelineKey, record);
+      } catch (error) {
+        if (expandedTimelineKeys.has(timelineKey)) expandedRecordErrors.set(timelineKey, error.message);
+      } finally {
+        expandedRecordLoading.delete(timelineKey);
+        renderDomainTimeline();
+      }
+    }
+
+    // 同一风险状态在连续快照中重复出现，只保留最新节点并标注合并次数；开始、恢复、
+    // 基线更新等生命周期节点绝不合并。
+    function compactTimelinePoints(points) {
+      const compacted = [];
+      for (const original of points || []) {
+        const point = { ...original };
+        const previous = compacted[compacted.length - 1];
+        if (point.state === 'event_active' && point.event_id && previous?.state === 'event_active' && previous.event_id === point.event_id) {
+          previous.merged_observations = Number(previous.merged_observations || 1) + 1;
+          previous.snapshot_id = point.snapshot_id;
+          previous.captured_at = point.captured_at;
+          previous.ns_count = point.ns_count;
+          previous.summary = point.summary || previous.summary;
+          continue;
+        }
+        point.merged_observations = 1;
+        compacted.push(point);
+      }
+      return compacted;
+    }
+
+    function renderTimeline(points, events) {
+      const eventsByID = new Map((events || []).map(event => [event.id, event]));
+      return compactTimelinePoints(points).slice().reverse().map(point => {
+        const state = timelineStates[point.state] || timelineStates.changed;
+        const severity = timelineSeverity(point.severity);
+        const event = eventsByID.get(point.event_id);
+        const timelineKey = timelinePointKey(point);
+        const canExpand = Boolean(point.snapshot_id);
+        const expanded = expandedTimelineKeys.has(timelineKey);
+        let detail = point.summary || event?.summary || state.detail;
+        const meta = [`<span class="tag">${Number(point.ns_count || 0)} 个 NS</span>`];
+        if (event) {
+          meta.push(`<span class="tag">${escapeHTML(labels[event.evidence] || event.evidence)}</span>`);
+          if (point.state === 'event_resolved') {
+            meta.push(`<span class="tag">风险最后出现：${escapeHTML(date(event.last_seen))}</span>`);
+          } else if (point.state === 'event_started') {
+            meta.push(`<span class="tag">${escapeHTML(labels[severity])}</span>`);
+          } else if (point.state === 'baseline_rolled') {
+            meta.push(`<span class="tag">连续 12 次后更新</span>`);
+          }
+        }
+        if (point.state === 'event_active' && event?.occurrences > 1) detail = `${detail}（累计 ${event.occurrences} 次）`;
+        if (Number(point.merged_observations || 1) > 1) meta.push(`<span class="tag">连续观测已合并 ${point.merged_observations} 次</span>`);
+        const stamp = timelineTimestamp(point.captured_at);
+        const action = canExpand ? (expanded ? '收起详情' : '查看详情') : '无原始快照';
+        return `<article class="timeline-event ${state.css} risk-${severity}"><div class="timeline-stamp"><time datetime="${escapeHTML(stamp.iso)}"><strong>${escapeHTML(stamp.day)}</strong><span>${escapeHTML(stamp.clock)}</span></time></div><div class="timeline-rail" aria-hidden="true"><span class="timeline-node">${state.glyph}</span></div><button class="timeline-card" type="button" data-snapshot-id="${escapeHTML(point.snapshot_id || '')}" data-timeline-key="${escapeHTML(timelineKey)}" aria-expanded="${expanded}" ${canExpand ? '' : 'disabled'}><div class="timeline-top"><div class="timeline-title">${escapeHTML(state.title)}</div><span class="timeline-card-action">${escapeHTML(action)}</span></div><div class="timeline-detail">${escapeHTML(detail)}</div><div class="timeline-meta">${meta.join('')}</div></button>${renderRecordExpansion(point, timelineKey, event)}</article>`;
+      }).join('') || '<div class="empty">暂无时间线。</div>';
+    }
+
+    async function openDomain(domain, { writeHistory = true } = {}) {
+      showView('domain', { writeHistory, domain });
+      $('domainInput').value = domain;
+      $('domainError').classList.add('hidden');
+      $('domainResult').classList.add('hidden');
+      try {
+        const data = await request(`/api/ns/domain?domain=${encodeURIComponent(domain)}`);
+        activeDomainDetail = data;
+        expandedTimelineKeys.clear();
+        expandedRecords.clear();
+        expandedRecordLoading.clear();
+        expandedRecordErrors.clear();
+        eventImpacts.clear();
+        eventImpactLoading.clear();
+        eventImpactErrors.clear();
+        eventProbes.clear();
+        eventProbeLoading.clear();
+        eventProbeErrors.clear();
+        const latestEvents = data.events || [];
+        const latest = latestEvents.reduce((current, event) => !current || new Date(event.last_seen) > new Date(current.last_seen) ? event : current, null);
+        const baselineSource = data.baseline_source || 'confirmed';
+        const baselineLabels = {
+          confirmed:'权威基线',
+          event_history:'历史事件基线',
+          candidate:'候选基线（尚未确认）',
+          current_only:'当前观测（暂无基线）'
+        };
+        const baselineNotes = {
+          event_history:'正式基线当前不可用，已使用事件产生时固化的历史基线进行追溯。',
+          candidate:'尚未积累满连续 12 次一致观测；该结果不会被当作权威基线。',
+          current_only:'持久化库尚未保存可用基线，仅展示当前观测与已存在的事件证据。'
+        };
+        $('detailDomain').textContent = data.domain;
+        $('baselineTitle').textContent = baselineLabels[baselineSource] || '基线观测';
+        $('detailMeta').textContent = `${baselineLabels[baselineSource] || '基线观测'} ${date(data.baseline.captured_at)} · 最新 ${date(data.current.captured_at)}`;
+        $('detailRisk').innerHTML = latest ? `${riskPill(latest.severity)} ${riskPill(latest.status)}` : '<span class="pill low">基线一致</span>';
+        $('detailChanges').innerHTML = latest ? tags(latest.change_types) : '<span class="tag">ns_baseline_consistent</span>';
+        $('detailEvidence').innerHTML = `${baselineNotes[baselineSource] ? `<div class="notice" style="margin-top:12px"><div>i</div><div>${escapeHTML(baselineNotes[baselineSource])}</div></div>` : ''}${renderEventNetworkDelta(latest)}`;
+        $('baselineTime').textContent = date(data.baseline.captured_at);
+        $('currentTime').textContent = date(data.current.captured_at);
+        renderNS(data.baseline.nameservers, 'baselineNS');
+        renderNS(data.current.nameservers, 'currentNS');
+        renderDomainTimeline();
+        $('domainResult').classList.remove('hidden');
+      } catch (error) {
+        $('domainError').textContent = error.message;
+        $('domainError').classList.remove('hidden');
+      }
+    }
+
+    function routeFor(target, domain = '') {
+      if (target === 'domain' && domain) return `/domain?domain=${encodeURIComponent(domain)}`;
+      return target === 'overview' ? '/overview' : `/${target}`;
+    }
+
+    function showView(target, { writeHistory = true, domain = '' } = {}) {
+      if (!titles[target]) target = 'overview';
+      if (writeHistory) {
+        const next = routeFor(target, domain);
+        if (window.location.pathname + window.location.search !== next) history.pushState({ target, domain }, '', next);
+      }
+      document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === target));
+      document.querySelectorAll('nav button').forEach(el => el.classList.toggle('active', el.dataset.target === target));
+      const [title, subtitle] = titles[target]; $('pageTitle').textContent = title; $('pageSubtitle').textContent = subtitle;
+      if (target === 'events') loadEvents().catch(showFailure);
+      if (target === 'domain') loadSuggestions().catch(showFailure);
+    }
+
+    function restoreRoute() {
+      const target = ({ '/events':'events', '/domain':'domain', '/overview':'overview' })[window.location.pathname] || 'overview';
+      const domain = new URLSearchParams(window.location.search).get('domain') || '';
+      if (target === 'domain' && domain) {
+        openDomain(domain, { writeHistory:false });
+      } else {
+        showView(target, { writeHistory:false });
+      }
+    }
+    function showFailure(error) { console.error(error); $('pageSubtitle').textContent = `读取失败：${error.message}`; }
+
+    document.querySelectorAll('nav button').forEach(button => button.addEventListener('click', () => showView(button.dataset.target)));
+    $('filterButton').addEventListener('click', () => loadEvents().catch(showFailure));
+    $('domainInput').addEventListener('input', () => loadSuggestions().catch(() => {}));
+    $('domainForm').addEventListener('submit', event => { event.preventDefault(); if ($('domainInput').value.trim()) openDomain($('domainInput').value.trim()); });
+    $('refreshButton').addEventListener('click', () => Promise.all([loadOverview(), loadEvents()]).catch(showFailure));
+    setInterval(() => {
+      loadOverview().catch(showFailure);
+      if ($('events').classList.contains('active')) loadEvents().catch(showFailure);
+    }, 30000);
+    window.addEventListener('popstate', restoreRoute);
+    restoreRoute();
+    loadOverview().catch(showFailure);
+  </script>
+</body>
+</html>

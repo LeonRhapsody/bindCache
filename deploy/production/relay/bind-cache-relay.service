@@ -1,0 +1,23 @@
+[Unit]
+Description=DNS probe and email relay for bindCacheAnalyze
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alipms
+Group=alipms
+EnvironmentFile=/etc/bind-cache-relay/relay.env
+ExecStart=/opt/bind-cache-relay/bindCacheAnalyze \
+  -relay -config /etc/bind-cache-relay/config.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadOnlyPaths=/etc/bind-cache-relay
+
+[Install]
+WantedBy=multi-user.target

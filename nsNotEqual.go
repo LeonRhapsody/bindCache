@@ -62,7 +62,7 @@ func contains(sliceA, sliceB []string) bool {
 }
 
 func areCnameContains(sliceA, sliceB []string) bool {
-	return contains(sliceA, sliceB) || contains(sliceA, sliceB)
+	return contains(sliceA, sliceB) || contains(sliceB, sliceA)
 }
 
 func (bC *BindCache) nsDiffers() {
@@ -90,8 +90,9 @@ func (bC *BindCache) nsDiffers() {
 
 	// 启动 worker Goroutine
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 150; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -101,7 +102,7 @@ func (bC *BindCache) nsDiffers() {
 				//NS不一致
 
 				// 获取标准DNS解析地址和实际结果比较
-				expectedDnsServer := "112.4.0.55"
+				expectedDnsServer := "127.0.0.1"
 
 				expectedResult, err := getDNSStatus(domain, expectedDnsServer)
 				num := 0
@@ -136,23 +137,21 @@ func (bC *BindCache) nsDiffers() {
 					}
 				}
 
+				mu.Lock()
 				if !isExpected {
-					fmt.Println(fmt.Sprintf("%s NS不一致：ns（%s）结果-%s-%s\n%s\n\n",
+					msg := fmt.Sprintf("%s NS不一致：ns（%s）结果-%s-%s\n%s\n\n",
 						domain,
 						expectedDnsServer,
 						expectedResult.RR_A,
 						expectedResult.RR_CNAME,
-						strings.Join(output, "\n")))
-					buffer.WriteString(fmt.Sprintf("%s NS不一致：ns（%s）结果-%s-%s\n%s\n\n",
-						domain,
-						expectedDnsServer,
-						expectedResult.RR_A,
-						expectedResult.RR_CNAME,
-						strings.Join(output, "\n")))
+						strings.Join(output, "\n"))
+					fmt.Print(msg)
+					buffer.WriteString(msg)
 				}
 				x++
 
 				fmt.Printf("%d/%d\n", x, len(NSDomains))
+				mu.Unlock()
 
 			}
 		}()

@@ -1,0 +1,12 @@
+{
+  "relay_server": {
+    "enabled": true,
+    "listen": "127.0.0.1:18788",
+    "token_env": "NS_RELAY_TOKEN",
+    "allowed_client_cidrs": ["127.0.0.0/8", "::1/128"],
+    "max_request_bytes": 1048576,
+    "max_dns_duration": "2s",
+    "allowed_dns_ports": [53, 15353],
+    "allowed_recipients": []
+  }
+}

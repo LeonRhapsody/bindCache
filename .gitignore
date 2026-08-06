@@ -1,30 +1,85 @@
-# Binaries for programs and plugins
+# Operating system and editor state
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration and credentials
+config.json
+.env
+.env.*
+*.env
+*.env.*
+runtime.env
+runtime.env.*
+!*.env.example
+!**/*.env.example
+!runtime.env.example
+!**/runtime.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Go and native build outputs
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-__debug_bin*
-
-# Test binary, built with `go test -c`, etc.
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+__debug_bin*
+/bindCacheAnalyze
+/bindCacheAnalyze_*
+/bind-cache-analyze-*
+/dist/
+/app/
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Frontend dependencies and local build state
+node_modules/
+.pnpm-store/
+frontend/node_modules/
+frontend/.env*
+frontend/dist-ssr/
+design-preview/
 
-# Project specific ignores
-*.db
-*.txt*
-*.csv
-*.tar.gz
-.idea/
-1.txt
-deffer.txt
-fail.txt
-ns.txt
-nsIP.txt
-type65.txt
-vip.txt
+# Raw snapshots, real exports, databases, and generated reports
+/*.db
+/*.db.gz
+/*.csv
+/*.sql.gz
+/*.txt
+/*.txt.*
+/*.tar.gz
+/*.mmdb
+/cache_dump*
+/named_dump*
+/dump*
+/first_*_rows.json
+/geoip_data/
+/data/
+/state/
+/blacklists/
+/*ledger*.json
+/*state*.json
+/*state*.json.gz
+/web/*.bak
+
+# Deployment bundles and target-specific copies
+/deploy/*.tar.gz
+/deploy/*.sha256
+/deploy/bind-cache-analyze-*/
+/deploy/current-server/
+/deploy/production/bindCacheAnalyze
+/deploy/**/bindCacheAnalyze
+
+# Internal or data-derived documents kept only in the local workspace
+*.doc
+*.docx
+/DNS 劫持检测分析报告.md
+/code_analysis_report.md
+/project_info.md

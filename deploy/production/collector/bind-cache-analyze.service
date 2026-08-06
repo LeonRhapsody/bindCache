@@ -1,0 +1,26 @@
+[Unit]
+Description=BIND cache NS persistent monitor and Web
+After=network-online.target clickhouse-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bindcache
+Group=bindcache
+SupplementaryGroups=binddump
+EnvironmentFile=/etc/bind-cache-analyze/ns-monitor.env
+ExecStart=/opt/bind-cache-analyze/bindCacheAnalyze \
+  -web-db -config /data/bind-cache-analyze/config/config.json
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=full
+ReadOnlyPaths=/data/bind-cache/dumps /data/bind-cache-analyze/geoip /etc/bind-cache-analyze
+ReadWritePaths=/data/bind-cache-analyze/config /data/bind-cache-analyze/state /data/bind-cache-analyze/blacklists
+
+[Install]
+WantedBy=multi-user.target

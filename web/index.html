@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全量递归解析详单 - DNS流量监测与分析</title>
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <!-- 引入自定义 Google 字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0085d0; /* 移动政企蓝 */
+            --header-bg: #1f2d3d;    /* 导航栏深蓝 */
+            --aside-bg: #ffffff;
+            --main-bg: #f0f2f5;
+            --text-color: #303133;
+            --border-color: #dcdfe6;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+            background-color: var(--main-bg);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶部 Header */
+        .frame-header {
+            background-color: var(--header-bg);
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            color: #ffffff;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo {
+            height: 32px;
+            width: 32px;
+            background-color: var(--primary-color);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .header-center {
+            flex: 1;
+            margin-left: 60px;
+        }
+
+        .header-menu {
+            list-style: none;
+            display: flex;
+            margin: 0;
+            padding: 0;
+            gap: 24px;
+        }
+
+        .header-menu-item {
+            font-size: 14px;
+            cursor: pointer;
+            padding: 18px 0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            opacity: 0.85;
+        }
+
+        .header-menu-item.is-active,
+        .header-menu-item:hover {
+            border-bottom-color: var(--primary-color);
+            opacity: 1;
+            font-weight: 500;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .userinfo-block {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .userinfo-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #00a0e9;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .userinfo-name {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .userinfo-hi {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        /* 页面主体布局 */
+        .frame-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* 左侧边栏 */
+        .frame-aside {
+            width: 240px;
+            background-color: var(--aside-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .aside-menu {
+            border-right: none !important;
+        }
+
+        .aside-menu .el-menu-item {
+            height: 48px;
+            line-height: 48px;
+            font-size: 14px;
+        }
+
+        .aside-menu .el-menu-item.is-active {
+            background-color: #e6f7ff !important;
+            color: var(--primary-color) !important;
+            border-right: 3px solid var(--primary-color);
+        }
+
+        .aside-menu .el-sub-menu__title {
+            height: 48px;
+            line-height: 48px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .aside-menu-icon {
+            margin-right: 8px;
+            font-size: 16px;
+            color: #909399;
+        }
+
+        .el-menu-item.is-active .aside-menu-icon {
+            color: var(--primary-color);
+        }
+
+        /* 右侧主区域 */
+        .frame-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #f5f7fa;
+        }
+
+        /* 顶部 Tab */
+        .frame-main-header {
+            background-color: #ffffff;
+            height: 40px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .tab-item {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary-color);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            padding: 8px 16px;
+            background-color: #f5f7fa;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-top: 8px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+        }
+
+        .frame-main-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* 全局日期与业务选择行 */
+        .common-search-row {
+            background-color: #ffffff;
+            border-radius: 4px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #ebeef5;
+        }
+
+        .search-left-filters {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* 卡片统一样式 */
+        .csmf-card {
+            border: 1px solid #ebeef5;
+            background-color: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 16px;
+        }
+
+        .csmf-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f2f6fc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 查询表单 */
+        .csmf-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .form-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            width: 80px;
+            text-align: right;
+            color: #606266;
+            flex-shrink: 0;
+        }
+
+        .form-content {
+            flex: 1;
+            display: flex;
+            gap: 4px;
+        }
+
+        .form-actions {
+            margin-top: 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* 指标卡片区 */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .metric-card {
+            background-color: #ffffff;
+            border: 1px solid #ebeef5;
+            border-radius: 4px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .metric-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #909399;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #303133;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .metric-icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        /* 指标卡片个性化背景 */
+        .m-blue { background-color: #e6f7ff; color: #1890ff; }
+        .m-red { background-color: #fff1f0; color: #f5222d; }
+        .m-orange { background-color: #fff7e6; color: #fa8c16; }
+        .m-green { background-color: #f6ffed; color: #52c41a; }
+
+        /* 表格工具栏 */
+        .table-tools {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .table-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #606266;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* 统一的分页容器 */
+        .pagination-container {
+            margin-top: 16px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* 状态标记 */
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .st-changed { background-color: #fff1f0; color: #f5222d; border: 1px solid #ffa39e; }
+        .st-recovered { background-color: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+
+        .details-wrapper {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: #606266;
+            background-color: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            font-family: monospace;
+        }
+
+        .change-arrow {
+            color: #8c8c8c;
+            margin: 0 6px;
+            font-weight: bold;
+        }
+
+        .tag-added { color: #f5222d; font-weight: 500; }
+        .tag-removed { color: #8c8c8c; text-decoration: line-through; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部 Header -->
+        <header class="frame-header">
+            <div class="header-left">
+                <div class="header-logo">D</div>
+                <div class="header-title">DNS流量监测与分析</div>
+            </div>
+            <div class="header-center">
+                <ul class="header-menu">
+                    <li class="header-menu-item is-active">专题分析</li>
+                    <li class="header-menu-item">系统管理</li>
+                </ul>
+            </div>
+            <div class="header-right">
+                <div class="userinfo-block">
+                    <div class="userinfo-avatar">J</div>
+                    <div class="userinfo-name">
+                        <span class="userinfo-hi">嗨！</span>jsyd
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="frame-container">
+            <!-- 左侧边栏 -->
+            <aside class="frame-aside">
+                <el-menu
+                    :default-openeds="['1', '1-1']"
+                    class="aside-menu"
+                    :default-active="activeMenu"
+                    @select="handleMenuSelect">
+                    <el-sub-menu index="1">
+                        <template #title>
+                            <i class="el-icon-folder aside-menu-icon"></i>
+                            <span>递归解析专题</span>
+                        </template>
+                        <el-sub-menu index="1-1">
+                            <template #title>
+                                <i class="el-icon-document aside-menu-icon"></i>
+                                <span>递归日志详单分析</span>
+                            </template>
+                            <el-menu-item index="snapshot-list">
+                                <i class="el-icon-list aside-menu-icon"></i>
+                                <span>全量递归解析详单</span>
+                            </el-menu-item>
+                            <el-menu-item index="analysis-report">
+                                <i class="el-icon-warning aside-menu-icon"></i>
+                                <span>每日隐患分析报表</span>
+                            </el-menu-item>
+                        </el-sub-menu>
+                    </el-sub-menu>
+                </el-menu>
+            </aside>
+
+            <!-- 右侧主区域 -->
+            <main class="frame-main">
+                <div class="frame-main-header">
+                    <div class="tab-item">
+                        {{ activeMenu === 'snapshot-list' ? '全量递归解析详单' : '每日隐患分析报表' }}
+                    </div>
+                </div>
+
+                <div class="frame-main-body">
+                    <!-- 全局日期与业务选择行 -->
+                    <div class="common-search-row">
+                        <div class="search-left-filters">
+                            <el-select v-model="selectedDate" placeholder="请选择快照日期" size="small" style="width: 180px;" @change="handleDateChange">
+                                <el-option
+                                    v-for="item in dateList"
+                                    :key="item.snapshot_date"
+                                    :label="item.snapshot_date + ' (共' + item.total_domains + '行)'"
+                                    :value="item.snapshot_date">
+                                </el-option>
+                            </el-select>
+                            <el-radio-group v-model="ipType" size="small">
+                                <el-radio-button label="all">全部</el-radio-button>
+                                <el-radio-button label="v4">IPv4</el-radio-button>
+                                <el-radio-button label="v6">IPv6</el-radio-button>
+                            </el-radio-group>
+                        </div>
+                        <div style="font-size: 12px; color: #909399;">
+                            解析引擎：BIND Cache | 视图：{{ metrics.view || 'any' }}
+                        </div>
+                    </div>
+
+                    <!-- 界面一：全量快照详单 -->
+                    <template v-if="activeMenu === 'snapshot-list'">
+                        <!-- 资源记录类型计数统计面板 -->
+                        <div class="csmf-card" style="padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px;" v-if="Object.keys(rrStats).length > 0">
+                            <span style="font-size: 13.5px; font-weight: bold; color: #606266; margin-right: 8px;">资源记录类型计数:</span>
+                            <el-tag
+                                v-for="(count, type) in rrStats"
+                                :key="type"
+                                size="small"
+                                :type="getTypeTagType(type)"
+                                style="font-size: 12.5px; padding: 4px 10px; height: auto;">
+                                <strong>{{ type }}</strong>: {{ count.toLocaleString() }}
+                            </el-tag>
+                        </div>
+
+                        <!-- 查询表单 -->
+                        <div class="csmf-card">
+                            <div class="csmf-card-title">
+                                <span>查询条件 <i class="el-icon-setting"></i></span>
+                            </div>
+                            <div class="csmf-form">
+                                <div class="form-item">
+                                    <span class="form-label">主域名</span>
+                                    <div class="form-content">
+                                        <el-select v-model="queryForm.mainDomainMatch" size="small" style="width: 100px;">
+                                            <el-option label="精确查询" value="exact"></el-option>
+                                            <el-option label="模糊匹配" value="like"></el-option>
+                                        </el-select>
+                                        <el-input v-model="queryForm.mainDomain" placeholder="请输入主域名" size="small"></el-input>
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <span class="form-label">域名</span>
+                                    <div class="form-content">
+                                        <el-select v-model="queryForm.domainMatch" size="small" style="width: 100px;">
+                                            <el-option label="精确查询" value="exact"></el-option>
+                                            <el-option label="模糊匹配" value="like"></el-option>
+                                        </el-select>
+                                        <el-input v-model="queryForm.domain" placeholder="请输入域名" size="small"></el-input>
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <span class="form-label">记录类型</span>
+                                    <div class="form-content">
+                                        <el-select v-model="queryForm.type" placeholder="全部类型" size="small" clearable>
+                                            <el-option label="A (IPv4 地址)" value="A"></el-option>
+                                            <el-option label="AAAA (IPv6 地址)" value="AAAA"></el-option>
+                                            <el-option label="NS (名称服务器)" value="NS"></el-option>
+                                            <el-option label="CNAME (别名)" value="CNAME"></el-option>
+                                            <el-option label="DNAME (区域重定向)" value="DNAME"></el-option>
+                                            <el-option label="MX (邮件交换)" value="MX"></el-option>
+                                            <el-option label="TXT (文本记录)" value="TXT"></el-option>
+                                            <el-option label="PTR (反向解析)" value="PTR"></el-option>
+                                            <el-option label="SOA (起始授权)" value="SOA"></el-option>
+                                            <el-option label="SRV (服务定位)" value="SRV"></el-option>
+                                            <el-option label="CAA (证书授权限制)" value="CAA"></el-option>
+                                            <el-option label="TLSA (证书关联)" value="TLSA"></el-option>
+                                            <el-option label="NAPTR (命名权威指针)" value="NAPTR"></el-option>
+                                            <el-option label="TYPE65 (SVCB)" value="TYPE65"></el-option>
+                                            <el-option label="TYPE64 (HTTPS)" value="TYPE64"></el-option>
+                                            <el-option label="RRSIG (资源记录签名)" value="RRSIG"></el-option>
+                                            <el-option label="DNSKEY (DNS 密钥)" value="DNSKEY"></el-option>
+                                            <el-option label="DS (代表授权)" value="DS"></el-option>
+                                            <el-option label="NSEC (下一安全记录)" value="NSEC"></el-option>
+                                            <el-option label="NSEC3 (下一安全记录 v3)" value="NSEC3"></el-option>
+                                        </el-select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <el-button size="small" @click="resetQuery">重置</el-button>
+                                <el-button type="primary" size="small" @click="searchRecords">查询</el-button>
+                            </div>
+                        </div>
+
+                        <!-- 详单数据表格 -->
+                        <div class="csmf-card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                            <div class="table-tools">
+                                <span class="table-title">全量递归解析详单列表</span>
+                                <div class="table-actions">
+                                    <el-button size="small" icon="el-icon-download" @click="exportCSV">导出 CSV</el-button>
+                                    <el-button size="small" icon="el-icon-refresh" @click="fetchSnapshotRecords">刷新</el-button>
+                                </div>
+                            </div>
+                            <el-table
+                                :data="recordList"
+                                style="width: 100%; flex: 1;"
+                                height="100%"
+                                size="small"
+                                border
+                                v-loading="tableLoading">
+                                <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+                                <el-table-column prop="domain" label="域名" min-width="160" show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="record_type" label="记录类型" width="90" align="center">
+                                    <template #default="scope">
+                                        <el-tag size="small" :type="getTypeTagType(scope.row.record_type)">{{ scope.row.record_type }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="record_data" label="记录值/解析IP" min-width="200" show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="ttl" label="TTL" width="85" align="center"></el-table-column>
+                                <el-table-column prop="trust_level" label="信任级别(子域)" width="110" align="center">
+                                    <template #default="scope">
+                                        <el-badge :value="scope.row.trust_level" class="item" :type="scope.row.trust_level >= 7 ? 'success' : 'info'"></el-badge>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="trust_code" label="信任标记" width="115" align="center">
+                                    <template #default="scope">
+                                        <el-tag size="small" :type="getTrustCodeTag(scope.row.trust_code)">{{ scope.row.trust_code }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="parent_trust_level" label="信任级别(父域)" width="110" align="center">
+                                    <template #default="scope">
+                                        <span v-if="scope.row.parent_trust_level !== null">
+                                            <el-badge :value="scope.row.parent_trust_level" class="item" type="primary"></el-badge>
+                                        </span>
+                                        <span v-else>-</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="rcode" label="响应状态(Rcode)" width="125" align="center">
+                                    <template #default="scope">
+                                        <span v-if="scope.row.rcode" :style="{color: scope.row.rcode !== 'NOERROR' ? '#f5222d' : '#67c23a', fontWeight: 'bold'}">
+                                            {{ scope.row.rcode }}
+                                        </span>
+                                        <span v-else>-</span>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+
+                            <div class="pagination-container">
+                                <el-pagination
+                                    v-model:current-page="currentPage"
+                                    v-model:page-size="pageSize"
+                                    :page-sizes="[10, 20, 50, 100]"
+                                    layout="total, sizes, prev, pager, next, jumper"
+                                    :total="totalRecords"
+                                    @size-change="handleSizeChange"
+                                    @current-change="handleCurrentChange">
+                                </el-pagination>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 界面二：每日隐患分析报表 -->
+                    <template v-else>
+                        <!-- 大屏指标卡片 -->
+                        <div class="metrics-grid">
+                            <div class="metric-card">
+                                <div class="metric-info">
+                                    <span class="metric-label">快照总域名数</span>
+                                    <span class="metric-value">{{ metrics.total_domains }}</span>
+                                </div>
+                                <div class="metric-icon-box m-blue">
+                                    <i class="el-icon-document"></i>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-info">
+                                    <span class="metric-label">🔴 危机事件 (黑名单)</span>
+                                    <span class="metric-value" style="color: #f5222d;">{{ metrics.crisis_count }}</span>
+                                </div>
+                                <div class="metric-icon-box m-red">
+                                    <i class="el-icon-bell"></i>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-info">
+                                    <span class="metric-label">🟠 高危隐患 (主域突变等)</span>
+                                    <span class="metric-value" style="color: #fa8c16;">{{ metrics.high_count }}</span>
+                                </div>
+                                <div class="metric-icon-box m-orange">
+                                    <i class="el-icon-warning"></i>
+                                </div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-info">
+                                    <span class="metric-label">🔵 变更提示数</span>
+                                    <span class="metric-value" style="color: #52c41a;">{{ metrics.info_count }}</span>
+                                </div>
+                                <div class="metric-icon-box m-green">
+                                    <i class="el-icon-info"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 隐患过滤表单 -->
+                        <div class="csmf-card">
+                            <div class="csmf-card-title">
+                                <span>隐患快速筛选</span>
+                            </div>
+                            <div class="csmf-form">
+                                <div class="form-item">
+                                    <span class="form-label">隐患类型</span>
+                                    <div class="form-content">
+                                        <el-select v-model="analysisQuery.issueType" placeholder="全部类型" size="small" clearable @change="handleAnalysisQueryChange">
+                                            <el-option label="单一 NS 点漏洞" value="single_ns"></el-option>
+                                            <el-option label="父子 NS 解析不一致" value="parent_child"></el-option>
+                                            <el-option label="安全劫持/黑洞" value="hijack"></el-option>
+                                            <el-option label="权威 NS 变更与恢复" value="ns_change"></el-option>
+                                            <el-option label="IP 国家地理跳变" value="country_jump"></el-option>
+                                            <el-option label="ASN 自治域跳变" value="asn_change"></el-option>
+                                            <el-option label="公网解析泄露为私网" value="rfc1918_leak"></el-option>
+                                            <el-option label="解析 TTL 异常突变" value="ttl_anomaly"></el-option>
+                                        </el-select>
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <span class="form-label">风险等级</span>
+                                    <div class="form-content">
+                                        <el-select v-model="analysisQuery.riskLevel" placeholder="全部等级" size="small" clearable @change="handleAnalysisQueryChange">
+                                            <el-option label="🔴 危机 (Crisis)" value="crisis"></el-option>
+                                            <el-option label="🟠 高危 (High)" value="high"></el-option>
+                                            <el-option label="🔵 提示 (Medium)" value="medium"></el-option>
+                                        </el-select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 隐患列表 -->
+                        <div class="csmf-card" style="flex: 1; display: flex; flex-direction: column;">
+                            <div class="table-tools">
+                                <span class="table-title">每日解析隐患与异常检测列表</span>
+                                <div class="table-actions">
+                                    <el-button size="small" icon="el-icon-refresh" @click="fetchAnalysisData">刷新</el-button>
+                                </div>
+                            </div>
+                            <el-table
+                                :data="analysisList"
+                                style="width: 100%;"
+                                size="small"
+                                border
+                                v-loading="analysisLoading">
+                                <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+                                <el-table-column prop="domain" label="受影响域名" min-width="150" show-overflow-tooltip></el-table-column>
+                                <el-table-column prop="issue_type" label="隐患类型" width="150">
+                                    <template #default="scope">
+                                        <el-tag size="small" :type="getIssueTypeTag(scope.row.issue_type)">
+                                            {{ getIssueTypeLabel(scope.row.issue_type) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="risk_level" label="风险级别" width="100" align="center">
+                                    <template #default="scope">
+                                        <el-tag size="small" :type="getRiskLevelTag(scope.row.risk_level)" effect="dark">
+                                            {{ getRiskLevelLabel(scope.row.risk_level) }}
+                                        </el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="隐患详情 / 变更追踪明细" min-width="320">
+                                    <template #default="scope">
+                                        <div class="details-wrapper" v-html="formatDetails(scope.row.issue_type, scope.row.details)"></div>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="detected_at" label="检测时间" width="140" align="center"></el-table-column>
+                            </el-table>
+
+                            <div class="pagination-container">
+                                <el-pagination
+                                    v-model:current-page="analysisCurrentPage"
+                                    v-model:page-size="analysisPageSize"
+                                    :page-sizes="[10, 20, 50, 100]"
+                                    layout="total, sizes, prev, pager, next, jumper"
+                                    :total="totalAnalysisRecords"
+                                    @size-change="handleAnalysisSizeChange"
+                                    @current-change="handleAnalysisCurrentChange">
+                                </el-pagination>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Vue 3 & Element Plus JS -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
+    <!-- Element Plus Icons -->
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const activeMenu = ref('snapshot-list');
+                const selectedDate = ref('');
+                const dateList = ref([]);
+                const ipType = ref('all');
+
+                // 快照记录列表数据
+                const recordList = ref([]);
+                const totalRecords = ref(0);
+                const currentPage = ref(1);
+                const pageSize = ref(20);
+                const tableLoading = ref(false);
+
+                // 查询表单
+                const queryForm = ref({
+                    mainDomain: '',
+                    mainDomainMatch: 'exact',
+                    domain: '',
+                    domainMatch: 'exact',
+                    type: ''
+                });
+
+                // 隐患分析数据
+                const analysisList = ref([]);
+                const analysisLoading = ref(false);
+                const analysisCurrentPage = ref(1);
+                const analysisPageSize = ref(20);
+                const totalAnalysisRecords = ref(0);
+                const metrics = ref({
+                    total_domains: 0,
+                    view: 'any',
+                    single_ns_count: 0,
+                    parent_child_count: 0,
+                    hijack_count: 0,
+                    ns_change_count: 0,
+                    crisis_count: 0,
+                    high_count: 0,
+                    info_count: 0
+                });
+                const analysisQuery = ref({
+                    issueType: '',
+                    riskLevel: ''
+                });
+                const rrStats = ref({});
+
+                // 获取日期列表
+                const fetchDateList = async () => {
+                    try {
+                        const response = await fetch('/api/dates');
+                        const data = await response.json();
+                        dateList.value = data;
+                        if (data && data.length > 0) {
+                            selectedDate.value = data[0].snapshot_date;
+                            handleDateChange();
+                        }
+                    } catch (error) {
+                        console.error('获取快照日期失败:', error);
+                    }
+                };
+
+                // 获取快照记录数据
+                const fetchSnapshotRecords = async () => {
+                    if (!selectedDate.value) return;
+                    tableLoading.value = true;
+                    try {
+                        let url = `/api/snapshot?date=${selectedDate.value}&page=${currentPage.value}&limit=${pageSize.value}`;
+                        if (queryForm.value.mainDomain) {
+                            url += `&main_domain=${encodeURIComponent(queryForm.value.mainDomain)}`;
+                            url += `&main_domain_match=${queryForm.value.mainDomainMatch}`;
+                        }
+                        if (queryForm.value.domain) {
+                            url += `&domain=${encodeURIComponent(queryForm.value.domain)}`;
+                            url += `&domain_match=${queryForm.value.domainMatch}`;
+                        }
+                        if (queryForm.value.type) {
+                            url += `&type=${queryForm.value.type}`;
+                        }
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        recordList.value = data.data || [];
+                        totalRecords.value = data.total || 0;
+                    } catch (error) {
+                        console.error('获取详单数据失败:', error);
+                    } finally {
+                        tableLoading.value = false;
+                    }
+                };
+
+                // 获取隐患检测数据
+                const fetchAnalysisData = async () => {
+                    if (!selectedDate.value) return;
+                    analysisLoading.value = true;
+                    try {
+                        let url = `/api/analysis?date=${selectedDate.value}&page=${analysisCurrentPage.value}&limit=${analysisPageSize.value}`;
+                        if (analysisQuery.value.issueType) {
+                            url += `&issue_type=${analysisQuery.value.issueType}`;
+                        }
+                        if (analysisQuery.value.riskLevel) {
+                            url += `&risk_level=${analysisQuery.value.riskLevel}`;
+                        }
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        analysisList.value = data.data || [];
+                        totalAnalysisRecords.value = data.total || 0;
+                        metrics.value = data.metrics || {};
+                    } catch (error) {
+                        console.error('获取隐患数据失败:', error);
+                    } finally {
+                        analysisLoading.value = false;
+                };
+
+                // 获取资源记录分类计数
+                const fetchRRStats = async () => {
+                    if (!selectedDate.value) return;
+                    try {
+                        const response = await fetch(`/api/rr-stats?date=${selectedDate.value}`);
+                        const data = await response.json();
+                        rrStats.value = data || {};
+                    } catch (error) {
+                        console.error('获取记录统计失败:', error);
+                    }
+                };
+
+                const handleAnalysisSizeChange = (val) => {
+                    analysisPageSize.value = val;
+                    analysisCurrentPage.value = 1;
+                    fetchAnalysisData();
+                };
+
+                const handleAnalysisCurrentChange = (val) => {
+                    analysisCurrentPage.value = val;
+                    fetchAnalysisData();
+                };
+
+                const handleAnalysisQueryChange = () => {
+                    analysisCurrentPage.value = 1;
+                    fetchAnalysisData();
+                };
+
+                const handleDateChange = () => {
+                    currentPage.value = 1;
+                    fetchSnapshotRecords();
+                    fetchAnalysisData();
+                    fetchRRStats();
+                };
+
+                const handleMenuSelect = (index) => {
+                    activeMenu.value = index;
+                    if (index === 'snapshot-list') {
+                        fetchSnapshotRecords();
+                        fetchRRStats();
+                    } else {
+                        fetchAnalysisData();
+                    }
+                };
+
+                const searchRecords = () => {
+                    currentPage.value = 1;
+                    fetchSnapshotRecords();
+                };
+
+                const resetQuery = () => {
+                    queryForm.value = {
+                        mainDomain: '',
+                        mainDomainMatch: 'exact',
+                        domain: '',
+                        domainMatch: 'exact',
+                        type: ''
+                    };
+                    searchRecords();
+                };
+
+                const handleSizeChange = (val) => {
+                    pageSize.value = val;
+                    currentPage.value = 1;
+                    fetchSnapshotRecords();
+                };
+
+                const handleCurrentChange = (val) => {
+                    currentPage.value = val;
+                    fetchSnapshotRecords();
+                };
+
+                const exportCSV = () => {
+                    if (recordList.value.length === 0) {
+                        ElementPlus.ElMessage.warning('没有可导出的数据');
+                        return;
+                    }
+                    let csvContent = "data:text/csv;charset=utf-8,\ufeff";
+                    csvContent += "序号,域名,记录类型,记录值,TTL,子域信任级,父域信任级,Rcode\n";
+                    recordList.value.forEach((row, index) => {
+                        const rcodeVal = row.rcode || '-';
+                        const pTrust = row.parent_trust_level !== null ? row.parent_trust_level : '-';
+                        const line = `${index+1},${row.domain},${row.record_type},"${row.record_data.replace(/"/g, '""')}",${row.ttl},${row.trust_level},${pTrust},${rcodeVal}`;
+                        csvContent += line + "\n";
+                    });
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `dns_snapshot_${selectedDate.value}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                };
+
+                // 工具函数
+                const getTrustCodeTag = (code) => {
+                    const map = {
+                        'authanswer': 'success',
+                        'authauthority': 'warning',
+                        'answer': 'primary',
+                        'credential': 'info',
+                        'additional': 'info',
+                        'glue': 'warning'
+                    };
+                    return map[code] || 'info';
+                };
+
+                const getTypeTagType = (type) => {
+                    const map = {
+                        'A': '',
+                        'AAAA': 'success',
+                        'NS': 'warning',
+                        'CNAME': 'info',
+                        'MX': 'danger',
+                        'TXT': 'info'
+                    };
+                    return map[type] || '';
+                };
+
+                const getIssueTypeLabel = (type) => {
+                    const map = {
+                        'single_ns': '单一 NS 点漏洞',
+                        'parent_child': '父子 NS 解析不一致',
+                        'hijack': '安全劫持/黑洞',
+                        'ns_change': '权威 NS 变更与恢复',
+                        'country_jump': 'IP 国家跨国跳变',
+                        'asn_change': 'ASN 自治域跳变',
+                        'rfc1918_leak': '公网解析泄露为私网',
+                        'ttl_anomaly': '解析 TTL 异常突变'
+                    };
+                    return map[type] || type;
+                };
+
+                const getIssueTypeTag = (type) => {
+                    const map = {
+                        'single_ns': 'warning',
+                        'parent_child': 'danger',
+                        'hijack': 'danger',
+                        'ns_change': '',
+                        'country_jump': 'danger',
+                        'asn_change': 'danger',
+                        'rfc1918_leak': 'danger',
+                        'ttl_anomaly': 'warning'
+                    };
+                    return map[type] || 'info';
+                };
+
+                const getRiskLevelLabel = (level) => {
+                    const map = {
+                        'crisis': '🔴 危机',
+                        'high': '🟠 高危',
+                        'medium': '🟡 中危',
+                        'info': '🔵 提示'
+                    };
+                    return map[level] || level;
+                };
+
+                const getRiskLevelTag = (level) => {
+                    const map = {
+                        'crisis': 'danger',
+                        'high': 'warning',
+                        'medium': 'warning',
+                        'info': 'info'
+                    };
+                    return map[level] || 'info';
+                };
+
+                const formatDetails = (issueType, detailsStr) => {
+                    try {
+                        const details = JSON.parse(detailsStr);
+                        if (issueType === 'single_ns') {
+                            return `仅配置了唯一的 NS 服务器：<strong>${details.ns || '-'}</strong>`;
+                        } else if (issueType === 'hijack') {
+                            return `疑似被国际安全机构接管：指向 NS <strong>${details.ns || '-'}</strong> (${details.attr || '-'})`;
+                        } else if (issueType === 'parent_child') {
+                            if (details.status === '完全悬空') {
+                                return `<span style="color:#f5222d;font-weight:bold;">[高危] 完全悬空</span> - 所有子域 NS 在缓存中均无 IP 记录。悬空 NS: ${details.dangling_ns ? details.dangling_ns.join(', ') : '-'}`;
+                            } else if (details.status === '部分悬空') {
+                                return `部分悬空 - 存在无 IP 的 NS 服务器。悬空 NS: ${details.dangling_ns ? details.dangling_ns.join(', ') : '-'} | 有效 NS: ${details.valid_ns ? details.valid_ns.join(', ') : '-'}`;
+                            } else {
+                                return `解析不一致 - 父子 NS 内容冲突。<br/>父域 NS: ${details.parent_ns ? details.parent_ns.join(', ') : '-'} <br/>子域 NS: ${details.child_ns ? details.child_ns.join(', ') : '-'}`;
+                            }
+                        } else if (issueType === 'ns_change') {
+                            const statusTag = details.status === '已恢复'
+                                ? `<span class="status-tag st-recovered">已恢复正常</span>`
+                                : `<span class="status-tag st-changed">已发生变化</span>`;
+
+                            const baseline = details.ns_baseline ? details.ns_baseline.join(', ') : '-';
+                            const today = details.ns_today ? details.ns_today.join(', ') : '-';
+
+                            let changeDetail = '';
+                            if (details.added && details.added.length > 0) {
+                                changeDetail += ` | 新增 NS: <span class="tag-added">${details.added.join(', ')}</span>`;
+                            }
+                            if (details.removed && details.removed.length > 0) {
+                                changeDetail += ` | 移除 NS: <span class="tag-removed">${details.removed.join(', ')}</span>`;
+                            }
+
+                            return `状态: ${statusTag}${changeDetail}<br/>基线 NS (过去7天): [${baseline}] <span class="change-arrow">&gt;</span> 今日 NS: [${today}]`;
+                        } else if (issueType === 'country_jump') {
+                            return `解析 IP 国家属性发生异常跳变！<br/>当前 IP: <strong>${details.current_ip || '-'}</strong> (<span style="color:#f5222d;font-weight:bold;">${details.current_country || '-'}</span>) <span class="change-arrow">&gt;</span> 基线 IP: <strong>${details.baseline_ip || '-'}</strong> (${details.baseline_country || '-'})`;
+                        } else if (issueType === 'asn_change') {
+                            return `解析 IP 归属 ASN 自治域发生异常突变！<br/>当前 IP: <strong>${details.current_ip || '-'}</strong> (AS${details.current_asn || '-'} - <span style="color:#f5222d;font-weight:bold;">${details.current_as_org || '-'}</span>) <span class="change-arrow">&gt;</span> 基线 IP: <strong>${details.baseline_ip || '-'}</strong> (AS${details.baseline_asn || '-'} - ${details.baseline_as_org || '-'})`;
+                        } else if (issueType === 'rfc1918_leak') {
+                            return `<span style="color:#f5222d;font-weight:bold;">[高危] 公网解析泄露为内网 IP！</span><br/>解析结果含有私网地址: <strong>${details.leaked_private_ip || '-'}</strong>`;
+                        } else if (issueType === 'ttl_anomaly') {
+                            return `解析记录缓存 TTL 发生异常突变下跌！当前 TTL 设为极低值: <strong>${details.abnormal_ttl || '-'}s</strong>`;
+                        }
+                        return detailsStr;
+                    } catch (e) {
+                        return detailsStr;
+                    }
+                };
+
+                onMounted(() => {
+                    fetchDateList();
+                });
+
+                return {
+                    activeMenu,
+                    selectedDate,
+                    dateList,
+                    ipType,
+                    recordList,
+                    totalRecords,
+                    rrStats,
+                    currentPage,
+                    pageSize,
+                    tableLoading,
+                    queryForm,
+                    analysisList,
+                    analysisLoading,
+                    analysisCurrentPage,
+                    analysisPageSize,
+                    totalAnalysisRecords,
+                    handleAnalysisSizeChange,
+                    handleAnalysisCurrentChange,
+                    handleAnalysisQueryChange,
+                    metrics,
+                    analysisQuery,
+                    handleDateChange,
+                    handleMenuSelect,
+                    searchRecords,
+                    resetQuery,
+                    handleSizeChange,
+                    handleCurrentChange,
+                    exportCSV,
+                    getTypeTagType,
+                    getIssueTypeLabel,
+                    getIssueTypeTag,
+                    getRiskLevelLabel,
+                    getRiskLevelTag,
+                    formatDetails,
+                    getTrustCodeTag
+                };
+            }
+        });
+
+        // 注册所有 Element Plus 图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(`el-icon-${key.toLowerCase()}`, component);
+        }
+
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

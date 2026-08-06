@@ -1,0 +1,75 @@
+{
+  "clickhouse_dsn": "clickhouse://default@127.0.0.1:19000/bind_cache_analyze?dial_timeout=10s",
+  "web": {
+    "listen": "127.0.0.1",
+    "port": "8888",
+    "auth_enabled": true,
+    "users": [
+      {
+        "username": "observer",
+        "password_env": "NS_WEB_OBSERVER_PASSWORD",
+        "role": "observer"
+      },
+      {
+        "username": "dnsops",
+        "password_env": "NS_WEB_OPERATOR_PASSWORD",
+        "role": "operator"
+      },
+      {
+        "username": "security-admin",
+        "password_env": "NS_WEB_ADMIN_PASSWORD",
+        "role": "admin"
+      }
+    ]
+  },
+  "dump_monitor": {
+    "directory": "/data/bind-cache/dumps",
+    "ledger_path": "/data/bind-cache-analyze/state/dump-ledger.json",
+    "poll_interval": "30s",
+    "stability_window": "90s"
+  },
+  "geoip": {
+    "directory": "/data/bind-cache-analyze/geoip"
+  },
+  "probe": {
+    "enabled": false,
+    "backend": "relay",
+    "recursive_resolver": "192.0.2.53:53",
+    "trusted_resolvers": [
+      "198.51.100.53:53",
+      "203.0.113.53:53"
+    ],
+    "timeout": "2s",
+    "event_timeout": "60s",
+    "max_domains": 20,
+    "max_parallel": 12,
+    "max_events_per_import": 3,
+    "direct_port": 53
+  },
+  "relay_client": {
+    "url": "",
+    "token_env": "NS_RELAY_TOKEN",
+    "timeout": "5s",
+    "tls_ca": ""
+  },
+  "alerts": {
+    "enabled": false,
+    "severities": [
+      "critical"
+    ],
+    "recipients": [
+      "security@example.com"
+    ],
+    "subject_prefix": "[DNS NS 严重告警]",
+    "cooldown": "24h",
+    "timeout": "10s"
+  },
+  "blacklist": {
+    "directory": "/data/bind-cache-analyze/blacklists",
+    "max_file_bytes": 67108864,
+    "max_entries": 2000000
+  },
+  "relay_server": {
+    "enabled": false
+  }
+}

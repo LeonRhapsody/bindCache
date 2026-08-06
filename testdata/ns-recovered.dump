@@ -1,0 +1,16 @@
+; Cache dump of view '_default' (cache)
+$DATE 20260728092000
+; authauthority
+example.test. 300 IN NS ns1.stable.example.net.
+             300 IN NS ns2.stable.example.net.
+; answer
+ns1.stable.example.net. 300 A 1.1.1.1
+ns2.stable.example.net. 300 A 1.0.0.1
+; authauthority
+low.example.test. 300 IN NS ns1.low.example.net.
+; answer
+ns1.low.example.net. 300 A 8.8.8.8
+; authauthority
+network.example.test. 300 IN NS ns1.network.example.net.
+; answer
+ns1.network.example.net. 300 A 8.8.8.8
